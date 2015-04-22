@@ -289,9 +289,59 @@ Poly build_poly(const vector<Pos>& points)
         rem.erase(find(all(rem), b));
     }
 
+//     set<pair<Pos, Pos>> cand;
+//     rep(i, poly.size()) rep(j, rem.size())
+//         cand.insert(make_pair(poly[i], rem[j]));
+
     while (!rem.empty())
     {
 //         dump(poly.size());
+//         dump(cand.size());
+
+//         dump(poly);
+//         dump(rem);
+
+//         {
+//             map<Pos, int> poly_index;
+//             rep(i, poly.size())
+//                 poly_index[poly[i]] = i;
+//
+//             int min_add_area = ten(9);
+//             pair<Pos, Pos> best_pair;
+//             vector<pair<Pos, Pos>> to_remove;
+//             for (auto& it : cand)
+//             {
+//                 int i = poly_index[it.first];
+//                 const Pos& p = it.second;
+//
+//                 //             assert(count(all(poly), it.first) == 1);
+//                 //             assert(count(all(rem), it.second) == 1);
+//
+//                 int add_area = area2({poly[i], poly[(i + 1) % poly.size()], p});
+//                 if (!intersect(poly, poly[i], p) && !intersect(poly, poly[(i + 1) % poly.size()], p))
+//                 {
+//                     if (add_area < min_add_area)
+//                     {
+//                         min_add_area = add_area;
+//                         best_pair = it;
+//                     }
+//                 }
+//                 else
+//                     to_remove.push_back(it);
+//             }
+//             assert(min_add_area != ten(9));
+//
+//             poly.insert(poly.begin() + poly_index[best_pair.first] + 1, best_pair.second);
+//             rem.erase(find(all(rem), best_pair.second));
+//
+//             for (auto& p : poly)
+//                 cand.erase(make_pair(p, best_pair.second));
+//             for (auto& it : to_remove)
+//                 cand.erase(it);
+//
+//             for (auto& p : rem)
+//                 cand.insert(make_pair(best_pair.second, p));
+//         }
 
         vector<tuple<int, int, int>> area_i_j;
         rep(i, poly.size())
@@ -316,12 +366,13 @@ Poly build_poly(const vector<Pos>& points)
                 break;
             }
         }
-        if (best_i == -1)
-            return poly;
+//         if (best_i == -1)
+//             return poly;
         assert(best_i != -1);
 
         poly.insert(poly.begin() + best_i + 1, rem[best_j]);
         rem.erase(rem.begin() + best_j);
+
 //         if (!is_valid_poly(poly))
 //             return poly;
         assert(is_valid_poly(poly));
@@ -329,9 +380,69 @@ Poly build_poly(const vector<Pos>& points)
 
     return poly;
 }
+vector<vector<Pos>> separate_points(const vector<Pos>& points, int max_polys)
+{
+    vector<vector<Pos>> separated;
+
+    queue<tuple<int, int, int, int, vector<Pos>>> q;
+    q.push(make_tuple(0, 0, 700, 700, points));
+    int rem_sepa = max_polys - 1;
+    while (!q.empty() && rem_sepa > 1)
+    {
+        int x1, y1, x2, y2;
+        vector<Pos> ps;
+        tie(x1, y1, x2, y2, ps) = q.front();
+        q.pop();
+
+        if (y2 - y1 >= x2 - x1)
+        {
+            int split_y = (y1 + y2) / 2;
+            vector<Pos> a, b;
+            for (auto& p : ps)
+                (p.y < split_y ? a : b).push_back(p);
+
+            if (a.size() >= 3 && b.size() >= 3)
+            {
+                q.push(make_tuple(x1, y1, x2, split_y, a));
+                q.push(make_tuple(x1, split_y, x2, y2, b));
+                --rem_sepa;
+            }
+            else
+                separated.push_back(ps);
+        }
+        else
+        {
+            int split_x = (x1 + x2) / 2;
+            vector<Pos> a, b;
+            for (auto& p : ps)
+                (p.x < split_x ? a : b).push_back(p);
+
+            if (a.size() >= 3 && b.size() >= 3)
+            {
+                q.push(make_tuple(x1, y1, split_x, y2, a));
+                q.push(make_tuple(split_x, y1, x2, y2, b));
+                --rem_sepa;
+            }
+            else
+                separated.push_back(ps);
+        }
+    }
+    while (!q.empty())
+    {
+        separated.push_back(get<4>(q.front()));
+        q.pop();
+    }
+
+    return separated;
+}
 vector<Poly> solve(const vector<Pos>& points, const int max_polys)
 {
-    return {build_poly(points)};
+    auto separated = separate_points(points, max_polys);
+
+    vector<Poly> polys;
+    for (auto& ps : separated)
+        polys.push_back(build_poly(ps));
+    return polys;
 }
 
 class SmallPolygons
