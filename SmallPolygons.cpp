@@ -289,9 +289,9 @@ Poly build_poly(const vector<Pos>& points)
         rem.erase(find(all(rem), b));
     }
 
-//     set<pair<Pos, Pos>> cand;
-//     rep(i, poly.size()) rep(j, rem.size())
-//         cand.insert(make_pair(poly[i], rem[j]));
+    set<tuple<Pos, Pos, Pos>> cand;
+    rep(i, poly.size()) rep(j, rem.size())
+        cand.insert(make_tuple(poly[i], poly[(i + 1) % poly.size()], rem[j]));
 
     while (!rem.empty())
     {
@@ -301,77 +301,85 @@ Poly build_poly(const vector<Pos>& points)
 //         dump(poly);
 //         dump(rem);
 
+        {
+            map<Pos, int> poly_index;
+            rep(i, poly.size())
+                poly_index[poly[i]] = i;
+
+            int min_add_area = ten(9);
+            pair<Pos, Pos> best_pair;
+            vector<tuple<Pos, Pos, Pos>> to_remove;
+            for (auto& it : cand)
+            {
+                const Pos& a = get<0>(it);
+                const Pos& b = get<1>(it);
+                const Pos& p = get<2>(it);
+
+                int add_area = area2({a, b, p});
+                if (!intersect(poly, a, p) && !intersect(poly, b, p))
+                {
+                    if (add_area < min_add_area)
+                    {
+                        min_add_area = add_area;
+                        best_pair = make_pair(a, p);
+                    }
+                }
+                else
+                    to_remove.push_back(it);
+            }
+            assert(min_add_area != ten(9));
+
+            const int poly_i = poly_index[best_pair.first];
+
+            for (auto& p : rem)
+                cand.erase(make_tuple(poly[poly_i], poly[(poly_i + 1) % poly.size()], p));
+            rep(i, poly.size())
+                    cand.erase(make_tuple(poly[i], poly[(i + 1) % poly.size()], best_pair.second));
+
+            for (auto& it : to_remove)
+                cand.erase(it);
+
+            poly.insert(poly.begin() + poly_index[best_pair.first] + 1, best_pair.second);
+            rem.erase(find(all(rem), best_pair.second));
+
+            for (auto& p : rem)
+            {
+                cand.insert(make_tuple(poly[poly_i], poly[(poly_i + 1) % poly.size()], p));
+                cand.insert(make_tuple(poly[(poly_i + 1) % poly.size()], poly[(poly_i + 2) % poly.size()], p));
+            }
+        }
+
 //         {
-//             map<Pos, int> poly_index;
+//             vector<tuple<int, int, int>> area_i_j;
 //             rep(i, poly.size())
-//                 poly_index[poly[i]] = i;
-//
-//             int min_add_area = ten(9);
-//             pair<Pos, Pos> best_pair;
-//             vector<pair<Pos, Pos>> to_remove;
-//             for (auto& it : cand)
 //             {
-//                 int i = poly_index[it.first];
-//                 const Pos& p = it.second;
-//
-//                 //             assert(count(all(poly), it.first) == 1);
-//                 //             assert(count(all(rem), it.second) == 1);
-//
-//                 int add_area = area2({poly[i], poly[(i + 1) % poly.size()], p});
-//                 if (!intersect(poly, poly[i], p) && !intersect(poly, poly[(i + 1) % poly.size()], p))
+//                 rep(j, rem.size())
 //                 {
-//                     if (add_area < min_add_area)
-//                     {
-//                         min_add_area = add_area;
-//                         best_pair = it;
-//                     }
+//                     int add_area = area2({poly[i], poly[(i + 1) % poly.size()], rem[j]});
+//                     area_i_j.push_back(make_tuple(add_area, i, j));
 //                 }
-//                 else
-//                     to_remove.push_back(it);
 //             }
-//             assert(min_add_area != ten(9));
+//             sort(all(area_i_j));
 //
-//             poly.insert(poly.begin() + poly_index[best_pair.first] + 1, best_pair.second);
-//             rem.erase(find(all(rem), best_pair.second));
+//             int best_i = -1, best_j;
+//             for (auto& it : area_i_j)
+//             {
+//                 int add_area, i, j;
+//                 tie(add_area, i, j) = it;
+//                 if (!intersect(poly, poly[i], rem[j]) && !intersect(poly, poly[(i + 1) % poly.size()], rem[j]))
+//                 {
+//                     best_i = i;
+//                     best_j = j;
+//                     break;
+//                 }
+//             }
+//             //         if (best_i == -1)
+//             //             return poly;
+//             assert(best_i != -1);
 //
-//             for (auto& p : poly)
-//                 cand.erase(make_pair(p, best_pair.second));
-//             for (auto& it : to_remove)
-//                 cand.erase(it);
-//
-//             for (auto& p : rem)
-//                 cand.insert(make_pair(best_pair.second, p));
+//             poly.insert(poly.begin() + best_i + 1, rem[best_j]);
+//             rem.erase(rem.begin() + best_j);
 //         }
-
-        vector<tuple<int, int, int>> area_i_j;
-        rep(i, poly.size())
-        {
-            rep(j, rem.size())
-            {
-                int add_area = area2({poly[i], poly[(i + 1) % poly.size()], rem[j]});
-                area_i_j.push_back(make_tuple(add_area, i, j));
-            }
-        }
-        sort(all(area_i_j));
-
-        int best_i = -1, best_j;
-        for (auto& it : area_i_j)
-        {
-            int add_area, i, j;
-            tie(add_area, i, j) = it;
-            if (!intersect(poly, poly[i], rem[j]) && !intersect(poly, poly[(i + 1) % poly.size()], rem[j]))
-            {
-                best_i = i;
-                best_j = j;
-                break;
-            }
-        }
-//         if (best_i == -1)
-//             return poly;
-        assert(best_i != -1);
-
-        poly.insert(poly.begin() + best_i + 1, rem[best_j]);
-        rem.erase(rem.begin() + best_j);
 
 //         if (!is_valid_poly(poly))
 //             return poly;
@@ -387,7 +395,7 @@ vector<vector<Pos>> separate_points(const vector<Pos>& points, int max_polys)
     queue<tuple<int, int, int, int, vector<Pos>>> q;
     q.push(make_tuple(0, 0, 700, 700, points));
     int rem_sepa = max_polys - 1;
-    while (!q.empty() && rem_sepa > 1)
+    while (!q.empty() && rem_sepa > 0)
     {
         int x1, y1, x2, y2;
         vector<Pos> ps;
