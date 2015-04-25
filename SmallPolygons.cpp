@@ -359,7 +359,7 @@ Poly build_poly(const vector<Pos>& init_poly, vector<Pos> rem)
 
     set<tuple<int, Pos, Pos, Pos>> cand;
     rep(i, poly.size()) for (auto& p : rem)
-        cand.insert(make_tuple(area({poly[i], poly[(i + 1) % poly.size()], p}), poly[i], poly[(i + 1) % poly.size()], p));
+        cand.insert(make_tuple(area2({poly[i], poly[(i + 1) % poly.size()], p}), poly[i], poly[(i + 1) % poly.size()], p));
 
     while (!rem.empty())
     {
@@ -399,9 +399,9 @@ Poly build_poly(const vector<Pos>& init_poly, vector<Pos> rem)
         const int poly_i = poly_index[best_pair.first];
 
         for (auto& p : rem)
-            cand.erase(make_tuple(area({poly[poly_i], poly[(poly_i + 1) % poly.size()], p}), poly[poly_i], poly[(poly_i + 1) % poly.size()], p));
+            cand.erase(make_tuple(area2({poly[poly_i], poly[(poly_i + 1) % poly.size()], p}), poly[poly_i], poly[(poly_i + 1) % poly.size()], p));
         rep(i, poly.size())
-            cand.erase(make_tuple(area({poly[i], poly[(i + 1) % poly.size()], best_pair.second}), poly[i], poly[(i + 1) % poly.size()], best_pair.second));
+            cand.erase(make_tuple(area2({poly[i], poly[(i + 1) % poly.size()], best_pair.second}), poly[i], poly[(i + 1) % poly.size()], best_pair.second));
 
         for (auto& it : to_remove)
             cand.erase(it);
@@ -411,8 +411,8 @@ Poly build_poly(const vector<Pos>& init_poly, vector<Pos> rem)
 
         for (auto& p : rem)
         {
-            cand.insert(make_tuple(area({poly[poly_i], poly[(poly_i + 1) % poly.size()], p}), poly[poly_i], poly[(poly_i + 1) % poly.size()], p));
-            cand.insert(make_tuple(area({poly[(poly_i + 1) % poly.size()], poly[(poly_i + 2) % poly.size()], p}), poly[(poly_i + 1) % poly.size()], poly[(poly_i + 2) % poly.size()], p));
+            cand.insert(make_tuple(area2({poly[poly_i], poly[(poly_i + 1) % poly.size()], p}), poly[poly_i], poly[(poly_i + 1) % poly.size()], p));
+            cand.insert(make_tuple(area2({poly[(poly_i + 1) % poly.size()], poly[(poly_i + 2) % poly.size()], p}), poly[(poly_i + 1) % poly.size()], poly[(poly_i + 2) % poly.size()], p));
         }
     }
 
@@ -481,7 +481,7 @@ vector<Poly> solve(const vector<Pos>& points, const int max_polys)
 
     vector<Poly> polys(separated.size());
     vector<int> poly_areas(separated.size(), ten(9));
-    for (int loop_i = 0; ;++loop_i)
+    for (int loop_i = 0; loop_i < ten(9);++loop_i)
     {
         rep(i, separated.size())
         {
@@ -499,7 +499,8 @@ vector<Poly> solve(const vector<Pos>& points, const int max_polys)
             Poly poly = build_poly(init, rem);
             if (poly.size() == separated[i].size())
             {
-                int poly_area = area(poly);
+                int poly_area = area2(poly);
+//                 dump(area(poly));
                 if (poly_area < poly_areas[i])
                 {
                     poly_areas[i] = poly_area;
