@@ -2,7 +2,6 @@
 #define NDEBUG
 #endif
 
-
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -94,6 +93,58 @@ public:
     void start() { start_time = get_ms(); }
     time_type get_elapsed() { return elapsed = get_ms() - start_time; }
 };
+
+class Random
+{
+private:
+    unsigned int  x, y, z, w;
+public:
+    Random(unsigned int x
+             , unsigned int y
+             , unsigned int z
+             , unsigned int w)
+        : x(x), y(y), z(z), w(w) { }
+    Random() 
+        : x(123456789), y(362436069), z(521288629), w(88675123) { }
+    Random(unsigned int seed)
+        : x(123456789), y(362436069), z(521288629), w(seed) { }
+
+    unsigned int next()
+    {
+        unsigned int t = x ^ (x << 11);
+        x = y;
+        y = z;
+        z = w;
+        return w = (w ^ (w >> 19)) ^ (t ^ (t >> 8));
+    }
+
+    int next_int() { return next(); }
+
+    // [0, upper)
+    int next_int(int upper) { return next() % upper; }
+
+    // [low, high]
+    int next_int(int low, int high) { return next_int(high - low + 1) + low; }
+
+    double next_double(double upper) { return upper * next() / UINT_MAX; }
+    double next_double(double low, double high) { return next_double(high - low) + low; }
+
+    template <typename T>
+    int select(const vector<T>& ratio)
+    {
+        T sum = accumulate(ratio.begin(), ratio.end(), (T)0);
+        T v = next_double(sum) + (T)1e-6;
+        for (int i = 0; i < (int)ratio.size(); ++i)
+        {
+            v -= ratio[i];
+            if (v <= 0)
+                return i;
+        }
+        return 0;
+    }
+};
+Random g_rand;
+
 
 #ifdef LOCAL
 const double G_TLE = 6 * 1000;
@@ -368,7 +419,7 @@ Poly init_rand_triangle(vector<Point>& ps)
 {
     assert(ps.size() >= 3);
 
-    int rand_i = rand() % ps.size();
+    int rand_i = g_rand.next_int(ps.size());
     Point rand_p = ps[rand_i];
     ps.erase(ps.begin() + rand_i);
 
@@ -465,21 +516,26 @@ pair<Poly, vector<Point>> remove_points(Poly poly, int begin, int num)
 
     vector<Point> removed_points(poly.begin(), poly.begin() + num);
     Poly remain_poly(poly.begin() + num, poly.end());
+    assert(remain_poly.size() >= 3);
+
+    rep(i, (int)remain_poly.size() - 1)
+        if (intersect(remain_poly[0], remain_poly.back(), remain_poly[i], remain_poly[i + 1]))
+            return make_pair(Poly(), vector<Point>());
 
     for (auto& p : removed_points)
         if (contain(remain_poly, p) != OUT)
             return make_pair(Poly(), vector<Point>());
-
-    if (!is_valid_poly(remain_poly))
-        return make_pair(Poly(), vector<Point>());
 
     return make_pair(remain_poly, removed_points);
 }
 
 Poly rebuild_poly(Poly poly)
 {
-    int remove_begin = rand() % poly.size();
-    int remove_num = 1 + min<int>(100, rand() % poly.size());
+    if (poly.size() <= 3)
+        return {};
+
+    int remove_begin = g_rand.next_int(poly.size());
+    int remove_num = g_rand.next_int(1, min<int>(100, (int)poly.size() - 3));
 
     Poly remain_poly;
     vector<Point> remain_points;
@@ -552,6 +608,7 @@ vector<Poly> solve(const vector<Point>& points, const int max_polys)
 //     auto separated = separate_points(points, 1);
 
     vector<Poly> polys(separated.size());
+    vector<Poly> best_polys(separated.size());
     rep(i, separated.size())
     {
         Poly poly;
@@ -561,8 +618,9 @@ vector<Poly> solve(const vector<Point>& points, const int max_polys)
             Poly init = init_rand_triangle(rem);
             poly = build_poly(init, rem);
         }
-        polys[i] = poly;
+        best_polys[i] = polys[i] = poly;
     }
+    dump(g_timer.get_elapsed());
 
     int loops = 0;
     for (int loop_i = 0; loop_i < ten(9); ++loop_i)
@@ -577,22 +635,27 @@ vector<Poly> solve(const vector<Point>& points, const int max_polys)
             {
                 if (area2(next) < area2(polys[i]))
                 {
-//                     fprintf(stderr, "%5.1f -> %5.1f\n", area(polys[i]), area(next));
                     polys[i] = next;
+                    if (area2(next) < area2(best_polys[i]))
+                    {
+                        fprintf(stderr, "%5.1f -> %5.1f\n", area(best_polys[i]), area(next));
+                        best_polys[i] = next;
+                    }
                 }
             }
         }
         ++loops;
     }
 END:;
+    dump(g_timer.get_elapsed());
     dump(loops);
-    return polys;
+    return best_polys;
 }
 
 class SmallPolygons
 {
 public:
-    vector<string> choosePolygons(vector<int> _points, int max_polys)
+    vector<string> choosePolygons(const vector<int>& _points, int max_polys)
     {
         g_timer.start();
 
