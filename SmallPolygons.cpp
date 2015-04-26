@@ -98,62 +98,62 @@ public:
 #ifdef LOCAL
 const double G_TLE = 6 * 1000;
 #else
-const double G_TLE = 9.5 * 1000;
+const double G_TLE = 9.6 * 1000;
 #endif
 Timer g_timer;
 
 
 
-struct Pos
+struct Point
 {
     int x, y;
-    Pos(int x, int y)
+    Point(int x, int y)
         : x(x), y(y)
     {
     }
-    Pos()
+    Point()
         : x(0), y(0)
     {
     }
 
-    bool operator==(const Pos& other) const
+    bool operator==(const Point& other) const
     {
         return x == other.x && y == other.y;
     }
-    bool operator !=(const Pos& other) const
+    bool operator !=(const Point& other) const
     {
         return x != other.x || y != other.y;
     }
 
-    void operator+=(const Pos& other)
+    void operator+=(const Point& other)
     {
         x += other.x;
         y += other.y;
     }
-    void operator-=(const Pos& other)
+    void operator-=(const Point& other)
     {
         x -= other.x;
         y -= other.y;
     }
 
-    Pos operator+(const Pos& other) const
+    Point operator+(const Point& other) const
     {
-        Pos res = *this;
+        Point res = *this;
         res += other;
         return res;
     }
-    Pos operator-(const Pos& other) const
+    Point operator-(const Point& other) const
     {
-        Pos res = *this;
+        Point res = *this;
         res -= other;
         return res;
     }
-    Pos operator*(int a) const
+    Point operator*(int a) const
     {
-        return Pos(x * a, y * a);
+        return Point(x * a, y * a);
     }
 
-    bool operator<(const Pos& other) const
+    bool operator<(const Point& other) const
     {
         if (x != other.x)
             return x < other.x;
@@ -161,51 +161,51 @@ struct Pos
             return y < other.y;
     }
 };
-Pos operator*(int a, const Pos& pos)
+Point operator*(int a, const Point& pos)
 {
     return pos * a;
 }
-ostream& operator<<(ostream& os, const Pos& pos)
+ostream& operator<<(ostream& os, const Point& pos)
 {
     os << "(" << pos.x << ", " << pos.y << ")";
     return os;
 }
 
-int norm2(const Pos& p)
+int norm2(const Point& p)
 {
     return p.x * p.x + p.y * p.y;
 }
-double norm(const Pos& p)
+double norm(const Point& p)
 {
     return sqrt(norm2(p));
 }
-int dot(const Pos& a, const Pos& b)
+int dot(const Point& a, const Point& b)
 {
     return a.x * b.x + a.y * b.y;
 }
-int cross(const Pos& a, const Pos& b)
+int cross(const Point& a, const Point& b)
 {
     return a.x * b.y - a.y * b.x;
 }
-int dist2(const Pos& a, const Pos& b)
+int dist2(const Point& a, const Point& b)
 {
     return norm2(a - b);
 }
-double dist(const Pos& a, const Pos& b)
+double dist(const Point& a, const Point& b)
 {
     return sqrt(dist2(a, b));
 }
 
-double dist(const Pos& a, const Pos& b, const Pos& p)
+double dist(const Point& a, const Point& b, const Point& p)
 {
-    const Pos vec = b - a;
+    const Point vec = b - a;
     if (dot(vec, p - a) <= 0)
         return dist(p, a);
     if (dot(vec, p - b) >= 0)
         return dist(p, b);
     return abs(-vec.y*p.x+vec.x*p.y+a.x*b.y-a.y*b.x) / norm(vec);
 }
-double dist(const Pos& p1, const Pos& p2, const Pos& q1, const Pos& q2)
+double dist(const Point& p1, const Point& p2, const Point& q1, const Point& q2)
 {
     return min(dist(p1, p2, q1), dist(p1, p2, q2));
 }
@@ -214,7 +214,7 @@ bool eq(double a, double b)
     return abs(a - b) < 1e-9;
 }
 
-bool intersect(const Pos& p1, const Pos& p2, const Pos& q1, const Pos& q2)
+bool intersect(const Point& p1, const Point& p2, const Point& q1, const Point& q2)
 {
     //do edges "this" and "other" intersect?
     if (min(p1.x,p2.x) > max(q1.x,q2.x)) return false;
@@ -223,8 +223,8 @@ bool intersect(const Pos& p1, const Pos& p2, const Pos& q1, const Pos& q2)
     if (max(p1.y,p2.y) < min(q1.y,q2.y)) return false;
 
 
-    const Pos p_vec = p2 - p1;
-    const Pos q_vec = q2 - q1;
+    const Point p_vec = p2 - p1;
+    const Point q_vec = q2 - q1;
     const int den = q_vec.y*p_vec.x-q_vec.x*p_vec.y;
     const int num1 = q_vec.x*(p1.y-q1.y)-q_vec.y*(p1.x-q1.x);
     const int num2 = p_vec.x*(p1.y-q1.y)-p_vec.y*(p1.x-q1.x);
@@ -258,7 +258,7 @@ bool intersect(const Pos& p1, const Pos& p2, const Pos& q1, const Pos& q2)
     return true;
 }
 
-typedef vector<Pos> Poly;
+typedef vector<Point> Poly;
 
 bool is_valid_poly(const Poly& poly)
 {
@@ -275,19 +275,31 @@ bool is_valid_poly(const Poly& poly)
 
     return true;
 }
-int area2(const Poly& poly)
+int signed_area2(const Poly& poly)
 {
     int s = 0;
     rep(i, poly.size())
         s += cross(poly[i], poly[(i + 1) % poly.size()]);
-    return abs(s);
+    return s;
+}
+int area2(const Poly& poly)
+{
+    return abs(signed_area2(poly));
 }
 double area(const Poly& poly)
 {
     return area2(poly) / 2.0;
 }
 
-bool intersect(const Poly& poly, const Pos& p1, const Pos& p2)
+Poly to_counter_clockwise(const Poly& poly)
+{
+    if (signed_area2(poly) > 0)
+        return poly;
+    else
+        return Poly(rall(poly));
+}
+
+bool intersect(const Poly& poly, const Point& p1, const Point& p2)
 {
     rep(i, poly.size())
         if (intersect(poly[i], poly[(i + 1) % poly.size()], p1, p2))
@@ -304,12 +316,35 @@ bool intersect(const Poly& a, const Poly& b)
     return false;
 }
 
+enum ContainRes
+{
+    OUT,
+    ON,
+    IN
+};
+ContainRes contain(const Poly& poly, const Point& p)
+{
+    bool in = false;
+    rep(i, poly.size())
+    {
+        Point a = poly[i] - p;
+        Point b = poly[(i + 1) % poly.size()] - p;
+        if (a.y > b.y)
+            swap(a, b);
 
-Poly init_nearest_pair(vector<Pos>& rem)
+        if (a.y <= 0 && 0 < b.y && cross(a, b) < 0)
+            in = !in;
+        if (cross(a, b) == 0 && dot(a, b) <= 0)
+            return ON;
+    }
+    return in ? IN : OUT;
+}
+
+Poly init_nearest_pair(vector<Point>& rem)
 {
     Poly poly;
     int min_dist = ten(9);
-    Pos a, b;
+    Point a, b;
     rep(j, rem.size()) rep(i, j)
     {
         int d = dist2(rem[i], rem[j]);
@@ -329,15 +364,15 @@ Poly init_nearest_pair(vector<Pos>& rem)
     return poly;
 }
 
-Poly init_rand_triangle(vector<Pos>& ps)
+Poly init_rand_triangle(vector<Point>& ps)
 {
     assert(ps.size() >= 3);
 
     int rand_i = rand() % ps.size();
-    Pos rand_p = ps[rand_i];
+    Point rand_p = ps[rand_i];
     ps.erase(ps.begin() + rand_i);
 
-    vector<pair<int, Pos>> near;
+    vector<pair<int, Point>> near;
     for (auto& p : ps)
     {
         near.push_back(make_pair(dist2(rand_p, p), p));
@@ -349,15 +384,15 @@ Poly init_rand_triangle(vector<Pos>& ps)
     ps.erase(find(all(ps), near[0].second));
     ps.erase(find(all(ps), near[1].second));
 
-    Poly triangle = {rand_p, near[0].second, near[1].second};
+    Poly triangle = to_counter_clockwise({rand_p, near[0].second, near[1].second});
     return triangle;
 }
 
-Poly build_poly(const vector<Pos>& init_poly, vector<Pos> rem)
+Poly build_poly(const vector<Point>& init_poly, vector<Point> rem)
 {
     Poly poly = init_poly;
 
-    set<tuple<int, Pos, Pos, Pos>> cand;
+    set<tuple<int, Point, Point, Point>> cand;
     rep(i, poly.size()) for (auto& p : rem)
         cand.insert(make_tuple(area2({poly[i], poly[(i + 1) % poly.size()], p}), poly[i], poly[(i + 1) % poly.size()], p));
 
@@ -366,20 +401,21 @@ Poly build_poly(const vector<Pos>& init_poly, vector<Pos> rem)
         if (g_timer.get_elapsed() > G_TLE)
             return {};
 
-        map<Pos, int> poly_index;
+        map<Point, int> poly_index;
         rep(i, poly.size())
             poly_index[poly[i]] = i;
 
         int min_add_area = ten(9);
-        pair<Pos, Pos> best_pair;
-        vector<tuple<int, Pos, Pos, Pos>> to_remove;
+        pair<Point, Point> best_pair;
+        vector<tuple<int, Point, Point, Point>> to_remove;
         for (auto& it : cand)
         {
-            const Pos& a = get<1>(it);
-            const Pos& b = get<2>(it);
-            const Pos& p = get<3>(it);
+            const Point& a = get<1>(it);
+            const Point& b = get<2>(it);
+            const Point& p = get<3>(it);
 
             int add_area = area2({a, b, p});
+            assert(add_area == get<0>(it));
             if (!intersect(poly, a, p) && !intersect(poly, b, p))
             {
                 if (add_area < min_add_area)
@@ -420,24 +456,59 @@ Poly build_poly(const vector<Pos>& init_poly, vector<Pos> rem)
 
     return poly;
 }
-vector<vector<Pos>> separate_points(const vector<Pos>& points, int max_polys)
-{
-    vector<vector<Pos>> separated;
 
-    queue<tuple<int, int, int, int, vector<Pos>>> q;
+pair<Poly, vector<Point>> remove_points(Poly poly, int begin, int num)
+{
+    assert(num <= poly.size());
+
+    rotate(poly.begin(), poly.begin() + begin, poly.end());
+
+    vector<Point> removed_points(poly.begin(), poly.begin() + num);
+    Poly remain_poly(poly.begin() + num, poly.end());
+
+    for (auto& p : removed_points)
+        if (contain(remain_poly, p) != OUT)
+            return make_pair(Poly(), vector<Point>());
+
+    if (!is_valid_poly(remain_poly))
+        return make_pair(Poly(), vector<Point>());
+
+    return make_pair(remain_poly, removed_points);
+}
+
+Poly rebuild_poly(Poly poly)
+{
+    int remove_begin = rand() % poly.size();
+    int remove_num = 1 + min<int>(100, rand() % poly.size());
+
+    Poly remain_poly;
+    vector<Point> remain_points;
+    tie(remain_poly, remain_points) = remove_points(poly, remove_begin, remove_num);
+    if (remain_poly.empty())
+        return {};
+
+    return build_poly(remain_poly, remain_points);
+}
+
+
+vector<vector<Point>> separate_points(const vector<Point>& points, int max_polys)
+{
+    vector<vector<Point>> separated;
+
+    queue<tuple<int, int, int, int, vector<Point>>> q;
     q.push(make_tuple(0, 0, 700, 700, points));
     int rem_sepa = max_polys - 1;
     while (!q.empty() && rem_sepa > 0)
     {
         int x1, y1, x2, y2;
-        vector<Pos> ps;
+        vector<Point> ps;
         tie(x1, y1, x2, y2, ps) = q.front();
         q.pop();
 
         if (y2 - y1 >= x2 - x1)
         {
             int split_y = (y1 + y2) / 2;
-            vector<Pos> a, b;
+            vector<Point> a, b;
             for (auto& p : ps)
                 (p.y < split_y ? a : b).push_back(p);
 
@@ -453,7 +524,7 @@ vector<vector<Pos>> separate_points(const vector<Pos>& points, int max_polys)
         else
         {
             int split_x = (x1 + x2) / 2;
-            vector<Pos> a, b;
+            vector<Point> a, b;
             for (auto& p : ps)
                 (p.x < split_x ? a : b).push_back(p);
 
@@ -475,41 +546,46 @@ vector<vector<Pos>> separate_points(const vector<Pos>& points, int max_polys)
 
     return separated;
 }
-vector<Poly> solve(const vector<Pos>& points, const int max_polys)
+vector<Poly> solve(const vector<Point>& points, const int max_polys)
 {
     auto separated = separate_points(points, max_polys);
+//     auto separated = separate_points(points, 1);
 
     vector<Poly> polys(separated.size());
-    vector<int> poly_areas(separated.size(), ten(9));
-    for (int loop_i = 0; loop_i < ten(9);++loop_i)
+    rep(i, separated.size())
+    {
+        Poly poly;
+        while (poly.empty())
+        {
+            vector<Point> rem = separated[i];
+            Poly init = init_rand_triangle(rem);
+            poly = build_poly(init, rem);
+        }
+        polys[i] = poly;
+    }
+
+    int loops = 0;
+    for (int loop_i = 0; loop_i < ten(9); ++loop_i)
     {
         rep(i, separated.size())
         {
             if (g_timer.get_elapsed() > G_TLE)
                 goto END;
 
-            vector<Pos> rem = separated[i];
-
-            Poly init;
-            if (loop_i == 0)
-                init = init_nearest_pair(rem);
-            else
-                init = init_rand_triangle(rem);
-
-            Poly poly = build_poly(init, rem);
-            if (poly.size() == separated[i].size())
+            Poly next = rebuild_poly(polys[i]);
+            if (!next.empty())
             {
-                int poly_area = area2(poly);
-//                 dump(area(poly));
-                if (poly_area < poly_areas[i])
+                if (area2(next) < area2(polys[i]))
                 {
-                    poly_areas[i] = poly_area;
-                    polys[i] = poly;
+//                     fprintf(stderr, "%5.1f -> %5.1f\n", area(polys[i]), area(next));
+                    polys[i] = next;
                 }
             }
         }
+        ++loops;
     }
 END:;
+    dump(loops);
     return polys;
 }
 
@@ -520,18 +596,19 @@ public:
     {
         g_timer.start();
 
-        vector<Pos> points;
+        vector<Point> points;
         for (int i = 0; i < _points.size(); i += 2)
-            points.push_back(Pos(_points[i], _points[i + 1]));
+            points.push_back(Point(_points[i], _points[i + 1]));
 
         vector<Poly> polys = solve(points, max_polys);
 
-        map<Pos, int> index;
+        map<Point, int> index;
         rep(i, points.size())
             index[points[i]] = i;
         vector<string> res;
         for (auto& poly : polys)
         {
+            assert(poly.size() >= 3);
             string s;
             s += to_s(index[poly[0]]);
             for (int i = 1; i < poly.size(); ++i)
