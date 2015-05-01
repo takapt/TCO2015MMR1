@@ -64,6 +64,7 @@ bool in_rect(int x, int y, int w, int h) { return 0 <= x && x < w && 0 <= y && y
 
 typedef long long ll;
 typedef pair<int, int> pint;
+typedef unsigned long long ull;
 
 
 
@@ -147,7 +148,7 @@ Random g_rand;
 
 
 #ifdef LOCAL
-const double G_TLE = 6 * 1000;
+const double G_TLE = 10 * 1000;
 #else
 const double G_TLE = 9.6 * 1000;
 #endif
@@ -443,9 +444,44 @@ Poly build_poly(const vector<Point>& init_poly, vector<Point> rem)
 {
     Poly poly = init_poly;
 
-    set<tuple<int, Point, Point, Point>> cand;
+    vector<Point> ps(all(init_poly));
+    ps.insert(ps.end(), all(rem));
+    map<Point, int> ps_index;
+    rep(i, ps.size())
+        ps_index[ps[i]] = i;
+
+    const auto encode = [&](const Point& a, const Point& b, const Point& p)
+    {
+        ull res = area2({a, b, p});
+        res <<= 11;
+        res |= ps_index[a];
+        res <<= 11;
+        res |= ps_index[b];
+        res <<= 11;
+        res |= ps_index[p];
+        return res;
+    };
+    const auto decode = [&](ull e)
+    {
+        Point p = ps[e & ((1 << 11) - 1)];
+        e >>= 11;
+        Point b = ps[e & ((1 << 11) - 1)];
+        e >>= 11;
+        Point a = ps[e & ((1 << 11) - 1)];
+        e >>= 11;
+        int area2 = e;
+        return make_tuple(area2, a, b, p);
+    };
+
+    set<ull> cand;
     rep(i, poly.size()) for (auto& p : rem)
-        cand.insert(make_tuple(area2({poly[i], poly[(i + 1) % poly.size()], p}), poly[i], poly[(i + 1) % poly.size()], p));
+    {
+        cand.insert(encode(poly[i], poly[(i + 1) % poly.size()], p));
+        ull e = encode(poly[i], poly[(i + 1) % poly.size()], p);
+        int ar2;
+        Point a, b, pp;
+        tie(ar2, a, b, pp) = decode(e);
+    }
 
     while (!rem.empty())
     {
@@ -458,9 +494,11 @@ Poly build_poly(const vector<Point>& init_poly, vector<Point> rem)
 
         int min_add_area = ten(9);
         pair<Point, Point> best_pair;
-        vector<tuple<int, Point, Point, Point>> to_remove;
-        for (auto& it : cand)
+//         vector<tuple<int, Point, Point, Point>> to_remove;
+        vector<ull> to_remove;
+        for (ull it_e : cand)
         {
+            auto it = decode(it_e);
             const Point& a = get<1>(it);
             const Point& b = get<2>(it);
             const Point& p = get<3>(it);
@@ -477,7 +515,7 @@ Poly build_poly(const vector<Point>& init_poly, vector<Point> rem)
                 }
             }
             else
-                to_remove.push_back(it);
+                to_remove.push_back(it_e);
         }
         if (min_add_area == ten(9))
             return {};
@@ -486,9 +524,9 @@ Poly build_poly(const vector<Point>& init_poly, vector<Point> rem)
         const int poly_i = poly_index[best_pair.first];
 
         for (auto& p : rem)
-            cand.erase(make_tuple(area2({poly[poly_i], poly[(poly_i + 1) % poly.size()], p}), poly[poly_i], poly[(poly_i + 1) % poly.size()], p));
+            cand.erase(encode(poly[poly_i], poly[(poly_i + 1) % poly.size()], p));
         rep(i, poly.size())
-            cand.erase(make_tuple(area2({poly[i], poly[(i + 1) % poly.size()], best_pair.second}), poly[i], poly[(i + 1) % poly.size()], best_pair.second));
+            cand.erase(encode(poly[i], poly[(i + 1) % poly.size()], best_pair.second));
 
         for (auto& it : to_remove)
             cand.erase(it);
@@ -498,8 +536,8 @@ Poly build_poly(const vector<Point>& init_poly, vector<Point> rem)
 
         for (auto& p : rem)
         {
-            cand.insert(make_tuple(area2({poly[poly_i], poly[(poly_i + 1) % poly.size()], p}), poly[poly_i], poly[(poly_i + 1) % poly.size()], p));
-            cand.insert(make_tuple(area2({poly[(poly_i + 1) % poly.size()], poly[(poly_i + 2) % poly.size()], p}), poly[(poly_i + 1) % poly.size()], poly[(poly_i + 2) % poly.size()], p));
+            cand.insert(encode(poly[poly_i], poly[(poly_i + 1) % poly.size()], p));
+            cand.insert(encode(poly[(poly_i + 1) % poly.size()], poly[(poly_i + 2) % poly.size()], p));
         }
     }
 
@@ -635,7 +673,7 @@ vector<Poly> solve(const vector<Point>& points, const int max_polys)
     dump(g_timer.get_elapsed());
 
     int loops = 0;
-    for (int loop_i = 0; loop_i < 0; ++loop_i)
+    for (int loop_i = 0; loop_i < ten(9); ++loop_i)
     {
         rep(i, separated.size())
         {
