@@ -519,12 +519,20 @@ pair<Poly, vector<Point>> remove_points(Poly poly, int begin, int num)
     assert(remain_poly.size() >= 3);
 
     rep(i, (int)remain_poly.size() - 1)
+    {
         if (intersect(remain_poly[0], remain_poly.back(), remain_poly[i], remain_poly[i + 1]))
+        {
             return make_pair(Poly(), vector<Point>());
+        }
+    }
 
     for (auto& p : removed_points)
+    {
         if (contain(remain_poly, p) != OUT)
+        {
             return make_pair(Poly(), vector<Point>());
+        }
+    }
 
     return make_pair(remain_poly, removed_points);
 }
@@ -536,12 +544,16 @@ Poly rebuild_poly(Poly poly)
 
     int remove_begin = g_rand.next_int(poly.size());
     int remove_num = g_rand.next_int(1, min<int>(100, (int)poly.size() - 3));
+    if (g_timer.get_elapsed() > G_TLE * 0.5)
+        remove_num = g_rand.next_int(1, min<int>(10, (int)poly.size() - 3));
 
     Poly remain_poly;
     vector<Point> remain_points;
     tie(remain_poly, remain_points) = remove_points(poly, remove_begin, remove_num);
     if (remain_poly.empty())
+    {
         return {};
+    }
 
     return build_poly(remain_poly, remain_points);
 }
@@ -604,8 +616,8 @@ vector<vector<Point>> separate_points(const vector<Point>& points, int max_polys
 }
 vector<Poly> solve(const vector<Point>& points, const int max_polys)
 {
-    auto separated = separate_points(points, max_polys);
-//     auto separated = separate_points(points, 1);
+//     auto separated = separate_points(points, max_polys);
+    auto separated = separate_points(points, 1);
 
     vector<Poly> polys(separated.size());
     vector<Poly> best_polys(separated.size());
@@ -623,7 +635,7 @@ vector<Poly> solve(const vector<Point>& points, const int max_polys)
     dump(g_timer.get_elapsed());
 
     int loops = 0;
-    for (int loop_i = 0; loop_i < ten(9); ++loop_i)
+    for (int loop_i = 0; loop_i < 0; ++loop_i)
     {
         rep(i, separated.size())
         {
@@ -638,7 +650,7 @@ vector<Poly> solve(const vector<Point>& points, const int max_polys)
                     polys[i] = next;
                     if (area2(next) < area2(best_polys[i]))
                     {
-                        fprintf(stderr, "%5.1f -> %5.1f\n", area(best_polys[i]), area(next));
+//                         fprintf(stderr, "%6d: %5.1f -> %5.1f\n", loop_i, area(best_polys[i]), area(next));
                         best_polys[i] = next;
                     }
                 }
