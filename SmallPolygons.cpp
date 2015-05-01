@@ -148,7 +148,7 @@ Random g_rand;
 
 
 #ifdef LOCAL
-const double G_TLE = 10 * 1000;
+const double G_TLE = 10.0 * 1000;
 #else
 const double G_TLE = 9.6 * 1000;
 #endif
@@ -343,6 +343,13 @@ double area(const Poly& poly)
     return area2(poly) / 2.0;
 }
 
+int triangle_area2(Point a, Point b, const Point& c)
+{
+    a -= c;
+    b -= c;
+    return abs(cross(a, b));
+}
+
 Poly to_counter_clockwise(const Poly& poly)
 {
     if (signed_area2(poly) > 0)
@@ -446,19 +453,24 @@ Poly build_poly(const vector<Point>& init_poly, vector<Point> rem)
 
     vector<Point> ps(all(init_poly));
     ps.insert(ps.end(), all(rem));
-    map<Point, int> ps_index;
+    static int ps_index[1024][1024];
     rep(i, ps.size())
-        ps_index[ps[i]] = i;
+        ps_index[ps[i].y][ps[i].x] = i;
+
+    static bool is_remain[1024][1024];
+    for (auto& p : rem)
+        is_remain[p.y][p.x] = true;
+
 
     const auto encode = [&](const Point& a, const Point& b, const Point& p)
     {
-        ull res = area2({a, b, p});
+        ull res = triangle_area2(a, b, p);
         res <<= 11;
-        res |= ps_index[a];
+        res |= ps_index[a.y][a.x];
         res <<= 11;
-        res |= ps_index[b];
+        res |= ps_index[b.y][b.x];
         res <<= 11;
-        res |= ps_index[p];
+        res |= ps_index[p.y][p.x];
         return res;
     };
     const auto decode = [&](ull e)
@@ -473,39 +485,37 @@ Poly build_poly(const vector<Point>& init_poly, vector<Point> rem)
         return make_tuple(area2, a, b, p);
     };
 
-    set<ull> cand;
+    priority_queue<ull, vector<ull>, greater<ull>> cand;
     rep(i, poly.size()) for (auto& p : rem)
-    {
-        cand.insert(encode(poly[i], poly[(i + 1) % poly.size()], p));
-        ull e = encode(poly[i], poly[(i + 1) % poly.size()], p);
-        int ar2;
-        Point a, b, pp;
-        tie(ar2, a, b, pp) = decode(e);
-    }
+        cand.push(encode(poly[i], poly[(i + 1) % poly.size()], p));
 
     while (!rem.empty())
     {
         if (g_timer.get_elapsed() > G_TLE)
             return {};
 
-        map<Point, int> poly_index;
+        static int poly_index[1024][1024];
         rep(i, poly.size())
-            poly_index[poly[i]] = i;
+            poly_index[poly[i].y][poly[i].x] = i;
+
 
         int min_add_area = ten(9);
         pair<Point, Point> best_pair;
-//         vector<tuple<int, Point, Point, Point>> to_remove;
         vector<ull> to_remove;
-        for (ull it_e : cand)
+        while (!cand.empty())
         {
+            ull it_e = cand.top();
+            cand.pop();
+
             auto it = decode(it_e);
             const Point& a = get<1>(it);
             const Point& b = get<2>(it);
             const Point& p = get<3>(it);
 
-            int add_area = area2({a, b, p});
-            assert(add_area == get<0>(it));
-            if (!intersect(poly, a, p) && !intersect(poly, b, p))
+            const int poly_i = poly_index[a.y][a.x];
+
+            int add_area = get<0>(it);
+            if (a == poly[poly_i] && b == poly[(poly_i + 1) % poly.size()] && is_remain[p.y][p.x] && !intersect(poly, a, p) && !intersect(poly, b, p))
             {
                 if (add_area < min_add_area)
                 {
@@ -521,23 +531,16 @@ Poly build_poly(const vector<Point>& init_poly, vector<Point> rem)
             return {};
         assert(min_add_area != ten(9));
 
-        const int poly_i = poly_index[best_pair.first];
+        const int poly_i = poly_index[best_pair.first.y][best_pair.first.x];
 
-        for (auto& p : rem)
-            cand.erase(encode(poly[poly_i], poly[(poly_i + 1) % poly.size()], p));
-        rep(i, poly.size())
-            cand.erase(encode(poly[i], poly[(i + 1) % poly.size()], best_pair.second));
-
-        for (auto& it : to_remove)
-            cand.erase(it);
-
-        poly.insert(poly.begin() + poly_index[best_pair.first] + 1, best_pair.second);
+        poly.insert(poly.begin() + poly_i + 1, best_pair.second);
         rem.erase(find(all(rem), best_pair.second));
+        is_remain[best_pair.second.y][best_pair.second.x] = false;
 
         for (auto& p : rem)
         {
-            cand.insert(encode(poly[poly_i], poly[(poly_i + 1) % poly.size()], p));
-            cand.insert(encode(poly[(poly_i + 1) % poly.size()], poly[(poly_i + 2) % poly.size()], p));
+            cand.push(encode(poly[poly_i], poly[(poly_i + 1) % poly.size()], p));
+            cand.push(encode(poly[(poly_i + 1) % poly.size()], poly[(poly_i + 2) % poly.size()], p));
         }
     }
 
