@@ -14,7 +14,7 @@ def parse(filename):
     return results 
 
 def make_line(x, y):
-    return '{:4d} {:4d} {:3d} {:>9.1f} {:>9.1f} {:>7.3f}'.format(x['seed'], x['np'], x['n'], x['score'], y['score'], x['score'] / y['score'])
+    return '{:4d} ({:4d} {:3d}) {:>9.1f} {:>9.1f} {:>7.3f}'.format(x['seed'], x['np'], x['n'], x['score'], y['score'], x['score'] / y['score'])
 
 np_size = sys.argv[3]
 a, b = sys.argv[1] + '_' + np_size, sys.argv[2] + '_' + np_size
