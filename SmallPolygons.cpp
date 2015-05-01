@@ -148,7 +148,7 @@ Random g_rand;
 
 
 #ifdef LOCAL
-const double G_TLE = 10.0 * 1000;
+const double G_TLE = 6.0 * 1000;
 #else
 const double G_TLE = 9.6 * 1000;
 #endif
@@ -365,6 +365,18 @@ bool intersect(const Poly& poly, const Point& p1, const Point& p2)
             return true;
     return false;
 }
+bool intersect(const Poly& poly, int start_i, const Point& p1, const Point& p2)
+{
+    const int n = poly.size();
+    vector<bool> f(n);
+    for (int i = (start_i + 1) % n, j = start_i; !f[i] || !f[j]; ++i %= n, j = (j - 1 + n) % n)
+    {
+        if (intersect(poly[i], poly[(i + 1) % n], p1, p2) || intersect(poly[j], poly[(j + 1) % n], p1, p2))
+            return true;
+        f[i] = f[j] = true;
+    }
+    return false;
+}
 bool intersect(const Poly& a, const Poly& b)
 {
     rep(i, a.size()) rep(j, b.size())
@@ -515,7 +527,9 @@ Poly build_poly(const vector<Point>& init_poly, vector<Point> rem)
             const int poly_i = poly_index[a.y][a.x];
 
             int add_area = get<0>(it);
-            if (a == poly[poly_i] && b == poly[(poly_i + 1) % poly.size()] && is_remain[p.y][p.x] && !intersect(poly, a, p) && !intersect(poly, b, p))
+            if (b == poly[(poly_i + 1) % poly.size()] && is_remain[p.y][p.x]
+//                 && !intersect(poly, a, p) && !intersect(poly, b, p))
+                && !intersect(poly, poly_i, a, p) && !intersect(poly, poly_i, b, p))
             {
                 if (add_area < min_add_area)
                 {
@@ -585,8 +599,8 @@ Poly rebuild_poly(Poly poly)
 
     int remove_begin = g_rand.next_int(poly.size());
     int remove_num = g_rand.next_int(1, min<int>(100, (int)poly.size() - 3));
-    if (g_timer.get_elapsed() > G_TLE * 0.5)
-        remove_num = g_rand.next_int(1, min<int>(10, (int)poly.size() - 3));
+//     if (g_timer.get_elapsed() > G_TLE * 0.5)
+//         remove_num = g_rand.next_int(1, min<int>(10, (int)poly.size() - 3));
 
     Poly remain_poly;
     vector<Point> remain_points;
@@ -657,8 +671,8 @@ vector<vector<Point>> separate_points(const vector<Point>& points, int max_polys
 }
 vector<Poly> solve(const vector<Point>& points, const int max_polys)
 {
-//     auto separated = separate_points(points, max_polys);
-    auto separated = separate_points(points, 1);
+    auto separated = separate_points(points, max_polys);
+//     auto separated = separate_points(points, 1);
 
     vector<Poly> polys(separated.size());
     vector<Poly> best_polys(separated.size());
@@ -678,6 +692,20 @@ vector<Poly> solve(const vector<Point>& points, const int max_polys)
     int loops = 0;
     for (int loop_i = 0; loop_i < ten(9); ++loop_i)
     {
+        if (loop_i && loop_i % 10000 == 0)
+        {
+            rep(i, separated.size())
+            {
+                Poly poly;
+                while (poly.empty())
+                {
+                    vector<Point> rem = separated[i];
+                    Poly init = init_rand_triangle(rem);
+                    poly = build_poly(init, rem);
+                }
+                polys[i] = poly;
+            }
+        }
         rep(i, separated.size())
         {
             if (g_timer.get_elapsed() > G_TLE)
