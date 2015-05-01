@@ -67,7 +67,7 @@ typedef pair<int, int> pint;
 typedef unsigned long long ull;
 
 
-
+int getms_calls = 0;
 #ifdef _MSC_VER
 #include <Windows.h>
 #else
@@ -85,7 +85,8 @@ private:
 #ifdef _MSC_VER
     time_type get_ms() { return (time_type)GetTickCount64() / 1000; }
 #else
-    time_type get_ms() { struct timeval t; gettimeofday(&t, NULL); return (time_type)t.tv_sec * 1000 + (time_type)t.tv_usec / 1000; }
+    time_type get_ms() { ++getms_calls; struct timeval t; gettimeofday(&t, NULL); return (time_type)t.tv_sec * 1000 + (time_type)t.tv_usec / 1000; }
+//     time_type get_ms() { ++getms_calls; return 0; }
 #endif
 
 public:
@@ -148,9 +149,9 @@ Random g_rand;
 
 
 #ifdef LOCAL
-const double G_TLE = 6.0 * 1000;
+const double G_TLE = 6.0 * 1000.0;
 #else
-const double G_TLE = 9.6 * 1000;
+const double G_TLE = 9.6 * 1000.0;
 #endif
 Timer g_timer;
 
@@ -503,8 +504,8 @@ Poly build_poly(const vector<Point>& init_poly, vector<Point> rem)
 
     while (!rem.empty())
     {
-        if (g_timer.get_elapsed() > G_TLE)
-            return {};
+//         if (g_timer.get_elapsed() > G_TLE)
+//             return {};
 
         static int poly_index[1024][1024];
         rep(i, poly.size())
@@ -513,7 +514,6 @@ Poly build_poly(const vector<Point>& init_poly, vector<Point> rem)
 
         int min_add_area = ten(9);
         pair<Point, Point> best_pair;
-        vector<ull> to_remove;
         while (!cand.empty())
         {
             ull it_e = cand.top();
@@ -528,7 +528,6 @@ Poly build_poly(const vector<Point>& init_poly, vector<Point> rem)
 
             int add_area = get<0>(it);
             if (b == poly[(poly_i + 1) % poly.size()] && is_remain[p.y][p.x]
-//                 && !intersect(poly, a, p) && !intersect(poly, b, p))
                 && !intersect(poly, poly_i, a, p) && !intersect(poly, poly_i, b, p))
             {
                 if (add_area < min_add_area)
@@ -538,8 +537,6 @@ Poly build_poly(const vector<Point>& init_poly, vector<Point> rem)
                     break;
                 }
             }
-            else
-                to_remove.push_back(it_e);
         }
         if (min_add_area == ten(9))
             return {};
@@ -690,27 +687,16 @@ vector<Poly> solve(const vector<Point>& points, const int max_polys)
     dump(g_timer.get_elapsed());
 
     int loops = 0;
-    for (int loop_i = 0; loop_i < ten(9); ++loop_i)
+    for (int loop_i = 0;
+//          loop_i < ten(9) * 3;
+            ;
+         ++loop_i, ++loops)
     {
-        if (loop_i && loop_i % 10000 == 0)
-        {
-            rep(i, separated.size())
-            {
-                Poly poly;
-                while (poly.empty())
-                {
-                    vector<Point> rem = separated[i];
-                    Poly init = init_rand_triangle(rem);
-                    poly = build_poly(init, rem);
-                }
-                polys[i] = poly;
-            }
-        }
+        if (loop_i % 1000 == 0 && g_timer.get_elapsed() > G_TLE)
+            goto END;
+
         rep(i, separated.size())
         {
-            if (g_timer.get_elapsed() > G_TLE)
-                goto END;
-
             Poly next = rebuild_poly(polys[i]);
             if (!next.empty())
             {
@@ -725,11 +711,11 @@ vector<Poly> solve(const vector<Point>& points, const int max_polys)
                 }
             }
         }
-        ++loops;
     }
 END:;
     dump(g_timer.get_elapsed());
     dump(loops);
+    dump(getms_calls);
     return best_polys;
 }
 
