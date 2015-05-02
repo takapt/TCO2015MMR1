@@ -149,7 +149,7 @@ Random g_rand;
 
 
 #ifdef LOCAL
-const double G_TL = 10.0 * 1000.0;
+const double G_TL = 6.0 * 1000.0;
 #else
 const double G_TL = 9.6 * 1000.0;
 #endif
@@ -731,7 +731,10 @@ pair<Poly, vector<Point>> remove_points(Poly poly, int begin, int num)
 vector<Poly> divide_poly(const vector<Poly>& init_polys)
 {
     // とりあえずpolys[0]をばらまくぞこの野郎
-    int polys_i = 0;
+    vector<double> ratio(init_polys.size());
+    rep(i, init_polys.size())
+        ratio[i] = init_polys[i].size() < 6 ? 0 : init_polys[i].size();
+    int polys_i = g_rand.select(ratio);
     if (init_polys[polys_i].size() < 3 + 3)
         return {};
 
@@ -744,7 +747,13 @@ vector<Poly> divide_poly(const vector<Poly>& init_polys)
         return {};
 
     auto remain_polys = init_polys;
+    rep(i, remain_polys.size())
+    {
+        if (i != polys_i && intersect(remain_polys[i], div_poly))
+            return {};
+    }
     remain_polys[polys_i] = div_poly;
+    assert(!intersect_polys(remain_polys));
 
     int best_area2 = ten(9);
     vector<Poly> best_polys;
@@ -756,11 +765,22 @@ vector<Poly> divide_poly(const vector<Poly>& init_polys)
         if (new_poly.empty())
             continue;
         assert(new_poly.size() == 3);
-        polys.push_back(new_poly);
 
-        //TODO: 速度的にやばそう
-        if (intersect_polys(polys))
+        bool is = false;
+        for (auto& poly : polys)
+        {
+            if (intersect(poly, new_poly))
+            {
+                is = true;
+                break;
+            }
+        }
+        if (is)
             continue;
+
+        assert(!intersect_polys(polys));
+        polys.push_back(new_poly);
+        assert(!intersect_polys(polys));
 
         polys = build_polys(polys, rem);
 
