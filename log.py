@@ -10,7 +10,9 @@ HOME = os.environ['HOME']
 MM = os.path.join(HOME, 'mmr1')
 exe = 'a.out' # if len(sys.argv) < 2 else sys.argv[1]
 
-output_filename = sys.argv[1]
+output_filename = None
+if len(sys.argv) > 1:
+    output_filename = sys.argv[1]
 
 exe_path = os.path.join(MM, exe)
 copied_exe_path = os.path.join(MM, 'copied_' + str(random.randint(0, 10**5)))
@@ -66,15 +68,20 @@ def multi(seeds):
         else:
             large_results.append(result)
 
-    output_list = small_results + med_results + large_results
-    for result in output_list:
-        seed = result['seed']
-        print(make_line(result))
-        sys.stdout.flush()
+#     for result in results:
+#         seed = result['seed']
+#         print(make_line(result))
+#         sys.stdout.flush()
 
-    write_file(output_filename + '_s', small_results)
-    write_file(output_filename + '_m', med_results)
-    write_file(output_filename + '_l', large_results)
+    if output_filename:
+        write_file(output_filename, results)
+        write_file(output_filename + '_s', small_results)
+        write_file(output_filename + '_m', med_results)
+        write_file(output_filename + '_l', large_results)
+
+    for result in (result for result in results if result['score'] < 1e-3):
+        print('zero score: {}'.format(result))
+
 
 try:
 #     single(range(1, 2))
