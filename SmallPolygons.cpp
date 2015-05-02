@@ -149,9 +149,9 @@ Random g_rand;
 
 
 #ifdef LOCAL
-const double G_TLE = 10.0 * 1000.0;
+const double G_TL = 10.0 * 1000.0;
 #else
-const double G_TLE = 9.6 * 1000.0;
+const double G_TL = 9.6 * 1000.0;
 #endif
 Timer g_timer;
 
@@ -530,9 +530,6 @@ Poly build_poly(const Poly& init_poly, vector<Point> rem)
 
     while (!rem.empty())
     {
-//         if (g_timer.get_elapsed() > G_TLE)
-//             return {};
-
         static int poly_index[1024][1024];
         rep(i, poly.size())
             poly_index[poly[i].y][poly[i].x] = i;
@@ -630,9 +627,6 @@ vector<Poly> build_polys(const vector<Poly>& init_polys, vector<Point> rem)
 
     while (!rem.empty())
     {
-//         if (g_timer.get_elapsed() > G_TLE)
-//             return {};
-
         static pint poly_index[1024][1024];
         rep(polys_i, polys.size())
         {
@@ -866,7 +860,7 @@ Poly build_poly(const vector<Point>& points)
     }
     return poly;
 }
-Poly improve_poly(const Poly& init_poly)
+Poly improve_poly(const Poly& init_poly, const double tl)
 {
     assert(is_valid_poly(init_poly));
 
@@ -880,7 +874,7 @@ Poly improve_poly(const Poly& init_poly)
             ;
          ++loop_i, ++loops)
     {
-        if (loop_i % 1000 == 0 && g_timer.get_elapsed() > G_TLE * 0.6)
+        if (loop_i % 1000 == 0 && g_timer.get_elapsed() > tl)
             break;
 
         Poly next = rebuild_poly(poly);
@@ -897,7 +891,7 @@ Poly improve_poly(const Poly& init_poly)
     }
     return poly;
 }
-vector<Poly> improve_polys(const Poly& init_poly, const int max_polys)
+vector<Poly> improve_polys(const Poly& init_poly, const int max_polys, const double tl)
 {
     assert(is_valid_poly(init_poly));
     assert(max_polys >= 2);
@@ -908,16 +902,18 @@ vector<Poly> improve_polys(const Poly& init_poly, const int max_polys)
     best_area2[0] = area2(init_poly);
 
     int loop_i = 0, poly_iter = 0;
+    int updates = 0;
     for (;
         ;
         ++loop_i)
     {
-        if (loop_i % 100 == 0 && g_timer.get_elapsed() > G_TLE)
+        if (loop_i % 100 == 0 && g_timer.get_elapsed() > tl)
             break;
 
         auto polys = divide_poly(best_polys[poly_iter]);
         if (!polys.empty())
         {
+            ++updates;
             int ar2 = area2(polys);
             if (ar2 < best_area2[poly_iter] && ar2 < best_area2[poly_iter + 1])
             {
@@ -931,6 +927,11 @@ vector<Poly> improve_polys(const Poly& init_poly, const int max_polys)
             ++poly_iter %= max_polys - 1;
     }
     dump(loop_i);
+    dump(updates);
+
+    rep(i, max_polys)
+        fprintf(stderr, "%2d: %f\n", i, best_area2[i] / 2.0);
+
     for (int i = max_polys - 1; i >= 0; --i)
         if (best_area2[i] != ten(9))
             return best_polys[i];
@@ -938,16 +939,13 @@ vector<Poly> improve_polys(const Poly& init_poly, const int max_polys)
 }
 vector<Poly> solve(const vector<Point>& points, const int max_polys)
 {
-//     auto separated = separate_points(points, max_polys);
-    auto separated = separate_points(points, 1);
-
     Poly poly = build_poly(points);
 
-    poly = improve_poly(poly);
+    poly = improve_poly(poly, G_TL * (points.size() < 400 ? 0.3 : (points.size() < 1000 ? 0.5 : 0.8)));
     dump(g_timer.get_elapsed());
 //     return {poly};
 
-    vector<Poly> polys = improve_polys(poly, max_polys);
+    vector<Poly> polys = improve_polys(poly, max_polys, G_TL);
     dump(g_timer.get_elapsed());
 
     dump(getms_calls);
