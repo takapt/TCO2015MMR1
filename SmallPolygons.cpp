@@ -149,7 +149,7 @@ Random g_rand;
 
 
 #ifdef LOCAL
-const double G_TLE = 6.0 * 1000.0;
+const double G_TLE = 10.0 * 1000.0;
 #else
 const double G_TLE = 9.6 * 1000.0;
 #endif
@@ -323,7 +323,9 @@ bool is_valid_poly(const Poly& poly)
     rep(j, n) rep(i, j)
     {
         if (intersect(poly[i], poly[(i + 1) % n], poly[j], poly[(j + 1) % n]))
+        {
             return false;
+        }
     }
 
     return true;
@@ -342,6 +344,13 @@ int area2(const Poly& poly)
 double area(const Poly& poly)
 {
     return area2(poly) / 2.0;
+}
+int area2(const vector<Poly>& polys)
+{
+    int sum = 0;
+    for (auto& poly : polys)
+        sum += area2(poly);
+    return sum;
 }
 
 int triangle_area2(Point a, Point b, const Point& c)
@@ -385,6 +394,13 @@ bool intersect(const Poly& a, const Poly& b)
         if (intersect(a[i], a[(i + 1) % a.size()], b[j], b[(j + 1) % b.size()]))
             return true;
     }
+    return false;
+}
+bool intersect_polys(const vector<Poly>& polys)
+{
+    rep(j, polys.size()) rep(i, j)
+        if (intersect(polys[i], polys[j]))
+            return true;
     return false;
 }
 
@@ -440,27 +456,37 @@ Poly init_rand_triangle(vector<Point>& ps)
 {
     assert(ps.size() >= 3);
 
-    int rand_i = g_rand.next_int(ps.size());
-    Point rand_p = ps[rand_i];
-    ps.erase(ps.begin() + rand_i);
-
-    vector<pair<int, Point>> near;
-    for (auto& p : ps)
+    rep(try_i, 10)
     {
-        near.push_back(make_pair(dist2(rand_p, p), p));
-        sort(all(near));
-        if (near.size() > 2)
-            near.pop_back();
+        auto copy_ps = ps;
+
+        int rand_i = g_rand.next_int(copy_ps.size());
+        Point rand_p = copy_ps[rand_i];
+        copy_ps.erase(copy_ps.begin() + rand_i);
+
+        vector<pair<int, Point>> near;
+        for (auto& p : copy_ps)
+        {
+            near.push_back(make_pair(dist2(rand_p, p), p));
+            sort(all(near));
+            if (near.size() > 2)
+                near.pop_back();
+        }
+
+        copy_ps.erase(find(all(copy_ps), near[0].second));
+        copy_ps.erase(find(all(copy_ps), near[1].second));
+
+        Poly triangle = to_counter_clockwise({rand_p, near[0].second, near[1].second});
+        if (triangle_area2(triangle[0], triangle[1], triangle[2]) > 0)
+        {
+            ps = copy_ps;
+            return triangle;
+        }
     }
-
-    ps.erase(find(all(ps), near[0].second));
-    ps.erase(find(all(ps), near[1].second));
-
-    Poly triangle = to_counter_clockwise({rand_p, near[0].second, near[1].second});
-    return triangle;
+    return {};
 }
 
-Poly build_poly(const vector<Point>& init_poly, vector<Point> rem)
+Poly build_poly(const Poly& init_poly, vector<Point> rem)
 {
     Poly poly = init_poly;
 
@@ -512,8 +538,8 @@ Poly build_poly(const vector<Point>& init_poly, vector<Point> rem)
             poly_index[poly[i].y][poly[i].x] = i;
 
 
-        int min_add_area = ten(9);
         pair<Point, Point> best_pair;
+        best_pair.first.x = -1;
         while (!cand.empty())
         {
             ull it_e = cand.top();
@@ -526,21 +552,15 @@ Poly build_poly(const vector<Point>& init_poly, vector<Point> rem)
 
             const int poly_i = poly_index[a.y][a.x];
 
-            int add_area = get<0>(it);
             if (b == poly[(poly_i + 1) % poly.size()] && is_remain[p.y][p.x]
                 && !intersect(poly, poly_i, a, p) && !intersect(poly, poly_i, b, p))
             {
-                if (add_area < min_add_area)
-                {
-                    min_add_area = add_area;
-                    best_pair = make_pair(a, p);
-                    break;
-                }
+                best_pair = make_pair(a, p);
+                break;
             }
         }
-        if (min_add_area == ten(9))
+        if (best_pair.first.x == -1)
             return {};
-        assert(min_add_area != ten(9));
 
         const int poly_i = poly_index[best_pair.first.y][best_pair.first.x];
 
@@ -558,6 +578,131 @@ Poly build_poly(const vector<Point>& init_poly, vector<Point> rem)
     assert(is_valid_poly(poly));
 
     return poly;
+}
+
+vector<Poly> build_polys(const vector<Poly>& init_polys, vector<Point> rem)
+{
+    for (auto& poly : init_polys)
+        assert(is_valid_poly(poly));
+    assert(!intersect_polys(init_polys));
+
+    vector<Poly> polys = init_polys;
+
+    vector<Point> ps;
+    for (auto& poly : polys)
+        ps.insert(ps.end(), all(poly));
+    ps.insert(ps.end(), all(rem));
+    static int ps_index[1024][1024];
+    rep(i, ps.size())
+        ps_index[ps[i].y][ps[i].x] = i;
+
+    static bool is_remain[1024][1024];
+    for (auto& p : rem)
+        is_remain[p.y][p.x] = true;
+
+
+    const auto encode = [&](const Point& a, const Point& b, const Point& p)
+    {
+        ull res = triangle_area2(a, b, p);
+        res <<= 11;
+        res |= ps_index[a.y][a.x];
+        res <<= 11;
+        res |= ps_index[b.y][b.x];
+        res <<= 11;
+        res |= ps_index[p.y][p.x];
+        return res;
+    };
+    const auto decode = [&](ull e)
+    {
+        Point p = ps[e & ((1 << 11) - 1)];
+        e >>= 11;
+        Point b = ps[e & ((1 << 11) - 1)];
+        e >>= 11;
+        Point a = ps[e & ((1 << 11) - 1)];
+        e >>= 11;
+        int area2 = e;
+        return make_tuple(area2, a, b, p);
+    };
+
+    priority_queue<ull, vector<ull>, greater<ull>> cand;
+    for (Poly& poly : polys) rep(i, poly.size()) for (auto& p : rem)
+        cand.push(encode(poly[i], poly[(i + 1) % poly.size()], p));
+
+    while (!rem.empty())
+    {
+//         if (g_timer.get_elapsed() > G_TLE)
+//             return {};
+
+        static pint poly_index[1024][1024];
+        rep(polys_i, polys.size())
+        {
+            Poly& poly = polys[polys_i];
+            rep(i, poly.size())
+                poly_index[poly[i].y][poly[i].x] = pint(polys_i, i);
+        }
+
+
+        int min_add_area = ten(9);
+        pair<Point, Point> best_pair;
+        best_pair.first.x = -1;
+        while (!cand.empty())
+        {
+            ull it_e = cand.top();
+            cand.pop();
+
+            auto it = decode(it_e);
+            const Point& a = get<1>(it);
+            const Point& b = get<2>(it);
+            const Point& p = get<3>(it);
+
+            int polys_i, poly_i;
+            tie(polys_i, poly_i) = poly_index[a.y][a.x];
+
+            Poly& poly = polys[polys_i];
+
+            if (b == poly[(poly_i + 1) % poly.size()] && is_remain[p.y][p.x]
+                && !intersect(poly, poly_i, a, p) && !intersect(poly, poly_i, b, p))
+            {
+                bool is = false;
+                rep(i, polys.size())
+                {
+                    if (i != polys_i && (intersect(polys[i], a, p) || intersect(polys[i], b, p)))
+                    {
+                        is = true;
+                        break;
+                    }
+                }
+
+                if (!is)
+                {
+                    best_pair = make_pair(a, p);
+                    break;
+                }
+            }
+        }
+        if (best_pair.first.x == -1)
+            return {};
+
+        const int polys_i = poly_index[best_pair.first.y][best_pair.first.x].first;
+        const int poly_i = poly_index[best_pair.first.y][best_pair.first.x].second;
+        Poly& poly = polys[polys_i];
+
+        poly.insert(poly.begin() + poly_i + 1, best_pair.second);
+        rem.erase(find(all(rem), best_pair.second));
+        is_remain[best_pair.second.y][best_pair.second.x] = false;
+
+        for (auto& p : rem)
+        {
+            cand.push(encode(poly[poly_i], poly[(poly_i + 1) % poly.size()], p));
+            cand.push(encode(poly[(poly_i + 1) % poly.size()], poly[(poly_i + 2) % poly.size()], p));
+        }
+    }
+
+    for (auto& poly : polys)
+        assert(is_valid_poly(poly));
+    assert(!intersect_polys(polys));
+
+    return polys;
 }
 
 pair<Poly, vector<Point>> remove_points(Poly poly, int begin, int num)
@@ -589,15 +734,59 @@ pair<Poly, vector<Point>> remove_points(Poly poly, int begin, int num)
     return make_pair(remain_poly, removed_points);
 }
 
+vector<Poly> divide_poly(const vector<Poly>& init_polys)
+{
+    // とりあえずpolys[0]をばらまくぞこの野郎
+    int polys_i = 0;
+    if (init_polys[polys_i].size() < 3 + 3)
+        return {};
+
+    int remove_begin = g_rand.next_int(init_polys[polys_i].size());
+    int remove_num = g_rand.next_int(3, min<int>(50, (int)init_polys[polys_i].size() - 3));
+    Poly div_poly;
+    vector<Point> remain_points;
+    tie(div_poly, remain_points) = remove_points(init_polys[polys_i], remove_begin, remove_num);
+    if (div_poly.empty())
+        return {};
+
+    auto remain_polys = init_polys;
+    remain_polys[polys_i] = div_poly;
+
+    int best_area2 = ten(9);
+    vector<Poly> best_polys;
+    rep(try_i, 10)
+    {
+        vector<Poly> polys = remain_polys;
+        vector<Point> rem = remain_points;
+        Poly new_poly = init_rand_triangle(rem);
+        if (new_poly.empty())
+            continue;
+        assert(new_poly.size() == 3);
+        polys.push_back(new_poly);
+
+        //TODO: 速度的にやばそう
+        if (intersect_polys(polys))
+            continue;
+
+        polys = build_polys(polys, rem);
+
+        int ar2 = area2(polys);
+        if (ar2 < best_area2)
+        {
+            best_area2 = ar2;
+            best_polys = polys;
+        }
+    }
+    return best_polys;
+}
+
 Poly rebuild_poly(Poly poly)
 {
     if (poly.size() <= 3)
         return {};
 
     int remove_begin = g_rand.next_int(poly.size());
-    int remove_num = g_rand.next_int(1, min<int>(100, (int)poly.size() - 3));
-//     if (g_timer.get_elapsed() > G_TLE * 0.5)
-//         remove_num = g_rand.next_int(1, min<int>(10, (int)poly.size() - 3));
+    int remove_num = g_rand.next_int(1, min<int>(50, (int)poly.size() - 3));
 
     Poly remain_poly;
     vector<Point> remain_points;
@@ -666,57 +855,103 @@ vector<vector<Point>> separate_points(const vector<Point>& points, int max_polys
 
     return separated;
 }
-vector<Poly> solve(const vector<Point>& points, const int max_polys)
+Poly build_poly(const vector<Point>& points)
 {
-    auto separated = separate_points(points, max_polys);
-//     auto separated = separate_points(points, 1);
-
-    vector<Poly> polys(separated.size());
-    vector<Poly> best_polys(separated.size());
-    rep(i, separated.size())
+    Poly poly;
+    while (poly.empty())
     {
-        Poly poly;
-        while (poly.empty())
-        {
-            vector<Point> rem = separated[i];
-            Poly init = init_rand_triangle(rem);
-            poly = build_poly(init, rem);
-        }
-        best_polys[i] = polys[i] = poly;
+        vector<Point> rem = points;
+        Poly init = init_rand_triangle(rem);
+        poly = build_poly(init, rem);
     }
-    dump(g_timer.get_elapsed());
+    return poly;
+}
+Poly improve_poly(const Poly& init_poly)
+{
+    assert(is_valid_poly(init_poly));
 
+    int ar2 = area2(init_poly);
+    Poly poly = init_poly;
+
+    int succ = 0;
     int loops = 0;
     for (int loop_i = 0;
-//          loop_i < ten(9) * 3;
+//          loop_i < ten(3) * 3;
             ;
          ++loop_i, ++loops)
     {
-        if (loop_i % 1000 == 0 && g_timer.get_elapsed() > G_TLE)
-            goto END;
+        if (loop_i % 1000 == 0 && g_timer.get_elapsed() > G_TLE * 0.6)
+            break;
 
-        rep(i, separated.size())
+        Poly next = rebuild_poly(poly);
+        if (!next.empty())
         {
-            Poly next = rebuild_poly(polys[i]);
-            if (!next.empty())
+            ++succ;
+            int nar2 = area2(next);
+            if (nar2 < ar2)
             {
-                if (area2(next) < area2(polys[i]))
-                {
-                    polys[i] = next;
-                    if (area2(next) < area2(best_polys[i]))
-                    {
-//                         fprintf(stderr, "%6d: %5.1f -> %5.1f\n", loop_i, area(best_polys[i]), area(next));
-                        best_polys[i] = next;
-                    }
-                }
+                ar2 = nar2;
+                poly = next;
             }
         }
     }
-END:;
+    return poly;
+}
+vector<Poly> improve_polys(const Poly& init_poly, const int max_polys)
+{
+    assert(is_valid_poly(init_poly));
+    assert(max_polys >= 2);
+
+    vector<vector<Poly>> best_polys(max_polys);
+    vector<int> best_area2(max_polys, ten(9));
+    best_polys[0] = {init_poly};
+    best_area2[0] = area2(init_poly);
+
+    int loop_i = 0, poly_iter = 0;
+    for (;
+        ;
+        ++loop_i)
+    {
+        if (loop_i % 100 == 0 && g_timer.get_elapsed() > G_TLE)
+            break;
+
+        auto polys = divide_poly(best_polys[poly_iter]);
+        if (!polys.empty())
+        {
+            int ar2 = area2(polys);
+            if (ar2 < best_area2[poly_iter] && ar2 < best_area2[poly_iter + 1])
+            {
+                best_polys[poly_iter + 1] = polys;
+                best_area2[poly_iter + 1] = ar2;
+            }
+        }
+
+        ++poly_iter %= max_polys - 1;
+        while (best_area2[poly_iter] == ten(9))
+            ++poly_iter %= max_polys - 1;
+    }
+    dump(loop_i);
+    for (int i = max_polys - 1; i >= 0; --i)
+        if (best_area2[i] != ten(9))
+            return best_polys[i];
+    return {};
+}
+vector<Poly> solve(const vector<Point>& points, const int max_polys)
+{
+//     auto separated = separate_points(points, max_polys);
+    auto separated = separate_points(points, 1);
+
+    Poly poly = build_poly(points);
+
+    poly = improve_poly(poly);
     dump(g_timer.get_elapsed());
-    dump(loops);
+//     return {poly};
+
+    vector<Poly> polys = improve_polys(poly, max_polys);
+    dump(g_timer.get_elapsed());
+
     dump(getms_calls);
-    return best_polys;
+    return polys;
 }
 
 class SmallPolygons
