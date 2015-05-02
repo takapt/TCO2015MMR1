@@ -635,8 +635,6 @@ vector<Poly> build_polys(const vector<Poly>& init_polys, vector<Point> rem)
                 poly_index[poly[i].y][poly[i].x] = pint(polys_i, i);
         }
 
-
-        int min_add_area = ten(9);
         pair<Point, Point> best_pair;
         best_pair.first.x = -1;
         while (!cand.empty())
