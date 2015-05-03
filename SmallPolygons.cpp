@@ -149,7 +149,7 @@ Random g_rand;
 
 
 #ifdef LOCAL
-const double G_TL = 6.0 * 1000.0;
+const double G_TL = 2 * 6.0 * 1000.0;
 #else
 const double G_TL = 9.6 * 1000.0;
 #endif
