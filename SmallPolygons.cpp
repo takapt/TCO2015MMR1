@@ -404,6 +404,106 @@ bool intersect_polys(const vector<Poly>& polys)
     return false;
 }
 
+struct Rect
+{
+    int x1, x2, y1, y2;
+    Rect(int x1, int x2, int y1, int y2)
+        : x1(x1), x2(x2), y1(y1), y2(y2)
+    {
+        assert(x1 <= x2);
+        assert(y1 <= y2);
+    }
+    Rect(const Point& a, const Point& b)
+    {
+        x1 = a.x, x2 = b.x;
+        y1 = a.y, y2 = b.y;
+        if (x1 > x2)
+            swap(x1, x2);
+        if (y1 > y2)
+            swap(y1, y2);
+    }
+
+    bool intersect(const Point& a, const Point& b) const
+    {
+        return intersect(Rect(a, b));
+    }
+
+    bool intersect(const Rect& other) const
+    {
+        return x1 <= other.x2 && other.x1 <= x2 && y1 <= other.y2 && other.y1 <= y2;
+    }
+};
+class PolyUtil
+{
+public:
+    Poly poly;
+
+    PolyUtil(const Poly& poly)
+    : poly(poly), block_size(10)
+    {
+        const int n = (poly.size() + block_size - 1) / block_size;
+        rep(block_i, n)
+        {
+            int x1, x2, y1, y2;
+            x1 = y1 = ten(9);
+            x2 = y2 = -ten(9);
+            int end = min<int>(poly.size(), (block_i + 1) * block_size);
+            for (int i = block_i * block_size; i < end; ++i)
+            {
+                upmin(x1, poly[i].x);
+                upmax(x2, poly[i].x);
+                upmin(y1, poly[i].y);
+                upmax(y2, poly[i].y);
+            }
+            upmin(x1, poly[end % poly.size()].x);
+            upmax(x2, poly[end % poly.size()].x);
+            upmin(y1, poly[end % poly.size()].y);
+            upmax(y2, poly[end % poly.size()].y);
+
+            block_rects.push_back(Rect(x1, x2, y1, y2));
+        }
+    }
+
+    bool intersect(const Point& a, const Point& b) const
+    {
+        rep(block_i, block_rects.size())
+        {
+            if (block_rects[block_i].intersect(a, b))
+            {
+                for (int i = block_i * block_size, end = min<int>(poly.size(), (block_i + 1) * block_size); i < end; ++i)
+                {
+                    if (::intersect(poly[i], poly[(i + 1) % poly.size()], a, b))
+                        return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    bool intersect(const PolyUtil& other) const
+    {
+        rep(block_i, block_rects.size()) rep(block_j, other.block_rects.size())
+        {
+            if (block_rects[block_i].intersect(other.block_rects[block_j]))
+            {
+                for (int i = block_i * block_size, end_i = min<int>(poly.size(), (block_i + 1) * block_size); i < end_i; ++i)
+                {
+                    for (int j = block_j * other.block_size, end_j = min<int>(other.poly.size(), (block_j + 1) * other.block_size); j < end_j; ++j)
+                    {
+                        if (::intersect(poly[i], poly[(i + 1) % poly.size()], other.poly[j], other.poly[(j + 1) % other.poly.size()]))
+                            return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+private:
+    int block_size;
+    vector<Rect> block_rects;
+};
+
 enum ContainRes
 {
     OUT,
@@ -534,6 +634,7 @@ Poly build_poly(const Poly& init_poly, vector<Point> rem)
         rep(i, poly.size())
             poly_index[poly[i].y][poly[i].x] = i;
 
+        PolyUtil poly_util(poly);
 
         pair<Point, Point> best_pair;
         best_pair.first.x = -1;
@@ -550,8 +651,13 @@ Poly build_poly(const Poly& init_poly, vector<Point> rem)
             const int poly_i = poly_index[a.y][a.x];
 
             if (b == poly[(poly_i + 1) % poly.size()] && is_remain[p.y][p.x]
-                && !intersect(poly, poly_i, a, p) && !intersect(poly, poly_i, b, p))
+                && !poly_util.intersect(a, p) && !poly_util.intersect(b, p))
             {
+                assert(cross(p - poly[poly_i], poly[(poly_i + 1) % poly.size()] - poly[poly_i]) >= 0);
+
+                assert(poly_util.intersect(a, p) == intersect(poly, poly_i, a, p));
+                assert(poly_util.intersect(b, p) == intersect(poly, poly_i, b, p));
+
                 best_pair = make_pair(a, p);
                 break;
             }
@@ -567,8 +673,10 @@ Poly build_poly(const Poly& init_poly, vector<Point> rem)
 
         for (auto& p : rem)
         {
-            cand.push(encode(poly[poly_i], poly[(poly_i + 1) % poly.size()], p));
-            cand.push(encode(poly[(poly_i + 1) % poly.size()], poly[(poly_i + 2) % poly.size()], p));
+            if (cross(p - poly[poly_i], poly[(poly_i + 1) % poly.size()] - poly[poly_i]) >= 0)
+                cand.push(encode(poly[poly_i], poly[(poly_i + 1) % poly.size()], p));
+            if (cross(p - poly[(poly_i + 1) % poly.size()], poly[(poly_i + 2) % poly.size()] - poly[(poly_i + 1) % poly.size()]) >= 0)
+                cand.push(encode(poly[(poly_i + 1) % poly.size()], poly[(poly_i + 2) % poly.size()], p));
         }
     }
 
@@ -579,9 +687,14 @@ Poly build_poly(const Poly& init_poly, vector<Point> rem)
 
 vector<Poly> build_polys(const vector<Poly>& init_polys, vector<Point> rem)
 {
+#ifndef NDEBUG
     for (auto& poly : init_polys)
+    {
+        assert(signed_area2(poly) > 0);
         assert(is_valid_poly(poly));
+    }
     assert(!intersect_polys(init_polys));
+#endif
 
     vector<Poly> polys = init_polys;
 
@@ -625,6 +738,10 @@ vector<Poly> build_polys(const vector<Poly>& init_polys, vector<Point> rem)
     for (Poly& poly : polys) rep(i, poly.size()) for (auto& p : rem)
         cand.push(encode(poly[i], poly[(i + 1) % poly.size()], p));
 
+    vector<PolyUtil> poly_util;
+    rep(i, polys.size())
+        poly_util.push_back(PolyUtil(polys[i]));
+
     while (!rem.empty())
     {
         static pint poly_index[1024][1024];
@@ -653,12 +770,48 @@ vector<Poly> build_polys(const vector<Poly>& init_polys, vector<Point> rem)
             Poly& poly = polys[polys_i];
 
             if (b == poly[(poly_i + 1) % poly.size()] && is_remain[p.y][p.x]
-                && !intersect(poly, poly_i, a, p) && !intersect(poly, poly_i, b, p))
+                && !poly_util[polys_i].intersect(a, p) && !poly_util[polys_i].intersect(b, p))
             {
+                assert(poly_util[polys_i].intersect(a, p) == intersect(poly, poly_i, a, p));
+                assert(poly_util[polys_i].intersect(b, p) == intersect(poly, poly_i, b, p));
+
+//                 {
+//                 assert(signed_area2(poly) >= 0);
+//                 auto w = poly;
+//                 reverse(all(w));
+//                 assert(signed_area2(w) <= 0);
+// //                 dump(poly.size());
+// //                 dump(cross(p - poly[poly_i], poly[(poly_i + 1) % poly.size()] - poly[poly_i]));
+// //                 dump(contain(poly, p));
+//                 assert(contain(poly, p) != IN);
+//                 assert(is_valid_poly(poly));
+//                 assert(0 <= poly_i && poly_i < poly.size());
+//                 dump(poly.size());
+//                 dump(poly);
+//                 dump(signed_area2(poly));
+//                 dump(p);
+//                 dump(cross(p - poly[poly_i], poly[(poly_i + 1) % poly.size()] - poly[poly_i]));
+//                 if (cross(p - poly[poly_i], poly[(poly_i + 1) % poly.size()] - poly[poly_i]) < 0)
+//                 {
+//                     int ar2 = get<0>(it);
+//                     dump(triangle_area2(poly[poly_i], poly[(poly_i + 1) % poly.size()], p));
+//                     dump(ar2);
+//                     auto w = poly;
+//
+//                     w.insert(w.begin() + poly_i + 1, p);
+//                     dump(signed_area2(w));
+//                     assert(is_valid_poly(w));
+//                 }
+//                 assert(cross(p - poly[poly_i], poly[(poly_i + 1) % poly.size()] - poly[poly_i]) >= 0);
+//                 }
+
+
                 bool is = false;
                 rep(i, polys.size())
                 {
-                    if (i != polys_i && (intersect(polys[i], a, p) || intersect(polys[i], b, p)))
+                    assert(poly_util[i].intersect(a, p) == intersect(polys[i], a, p));
+                    assert(poly_util[i].intersect(b, p) == intersect(polys[i], b, p));
+                    if (i != polys_i && (poly_util[i].intersect(a, p) || poly_util[i].intersect(b, p)))
                     {
                         is = true;
                         break;
@@ -680,28 +833,40 @@ vector<Poly> build_polys(const vector<Poly>& init_polys, vector<Point> rem)
         Poly& poly = polys[polys_i];
 
         poly.insert(poly.begin() + poly_i + 1, best_pair.second);
+        poly_util[polys_i] = PolyUtil(poly);
+
         rem.erase(find(all(rem), best_pair.second));
         is_remain[best_pair.second.y][best_pair.second.x] = false;
 
         for (auto& p : rem)
         {
-            cand.push(encode(poly[poly_i], poly[(poly_i + 1) % poly.size()], p));
-            cand.push(encode(poly[(poly_i + 1) % poly.size()], poly[(poly_i + 2) % poly.size()], p));
+            //TODO: cross < 0のやつがあるのが謎
+//             cand.push(encode(poly[poly_i], poly[(poly_i + 1) % poly.size()], p));
+//             cand.push(encode(poly[(poly_i + 1) % poly.size()], poly[(poly_i + 2) % poly.size()], p));
+//             if (cross(p - poly[poly_i], poly[(poly_i + 1) % poly.size()] - poly[poly_i]) >= 0)
+                cand.push(encode(poly[poly_i], poly[(poly_i + 1) % poly.size()], p));
+//             if (cross(p - poly[(poly_i + 1) % poly.size()], poly[(poly_i + 2) % poly.size()] - poly[(poly_i + 1) % poly.size()]) >= 0)
+                cand.push(encode(poly[(poly_i + 1) % poly.size()], poly[(poly_i + 2) % poly.size()], p));
         }
     }
 
+#ifndef NDEBUG
     for (auto& poly : polys)
         assert(is_valid_poly(poly));
     assert(!intersect_polys(polys));
+#endif
 
     return polys;
 }
 
 pair<Poly, vector<Point>> remove_points(Poly poly, int begin, int num)
 {
+    Poly ori = poly;
     assert(num <= poly.size());
+    assert(signed_area2(poly) > 0);
 
     rotate(poly.begin(), poly.begin() + begin, poly.end());
+    assert(signed_area2(poly) > 0);
 
     vector<Point> removed_points(poly.begin(), poly.begin() + num);
     Poly remain_poly(poly.begin() + num, poly.end());
@@ -722,12 +887,22 @@ pair<Poly, vector<Point>> remove_points(Poly poly, int begin, int num)
         assert(contain(remain_poly, p) == OUT);
 #endif
 
+    if (signed_area2(remain_poly) <= 0)
+        remain_poly = to_counter_clockwise(remain_poly);
+
+    assert(is_valid_poly(remain_poly));
+    assert(signed_area2(remain_poly) > 0);
+
     return make_pair(remain_poly, removed_points);
 }
 
 vector<Poly> divide_poly(const vector<Poly>& init_polys)
 {
-    // とりあえずpolys[0]をばらまくぞこの野郎
+#ifndef NDEBUG
+    for (auto& poly : init_polys)
+        assert(signed_area2(poly) > 0);
+#endif
+
     vector<double> ratio(init_polys.size());
     rep(i, init_polys.size())
         ratio[i] = init_polys[i].size() < 6 ? 0 : init_polys[i].size();
@@ -742,19 +917,25 @@ vector<Poly> divide_poly(const vector<Poly>& init_polys)
     tie(div_poly, remain_points) = remove_points(init_polys[polys_i], remove_begin, remove_num);
     if (div_poly.empty())
         return {};
+    assert(signed_area2(div_poly) > 0);
 
     auto remain_polys = init_polys;
+    vector<PolyUtil> poly_util(remain_polys.size(), Poly());
+    rep(i, remain_polys.size())
+        if (i != polys_i)
+            poly_util[i] = PolyUtil(remain_polys[i]);
     rep(i, remain_polys.size())
     {
-        if (i != polys_i && intersect(remain_polys[i], div_poly))
+        if (i != polys_i && poly_util[i].intersect(div_poly[0], div_poly.back()))
             return {};
     }
     remain_polys[polys_i] = div_poly;
+    poly_util[polys_i] = PolyUtil(div_poly);
     assert(!intersect_polys(remain_polys));
 
     int best_area2 = ten(9);
     vector<Poly> best_polys;
-    rep(try_i, 10)
+    rep(try_i, 5)
     {
         vector<Poly> polys = remain_polys;
         vector<Point> rem = remain_points;
@@ -764,9 +945,10 @@ vector<Poly> divide_poly(const vector<Poly>& init_polys)
         assert(new_poly.size() == 3);
 
         bool is = false;
-        for (auto& poly : polys)
+        PolyUtil new_util(new_poly);
+        for (auto& u : poly_util)
         {
-            if (intersect(poly, new_poly))
+            if (u.intersect(new_util))
             {
                 is = true;
                 break;
@@ -811,61 +993,6 @@ Poly rebuild_poly(Poly poly)
 }
 
 
-vector<vector<Point>> separate_points(const vector<Point>& points, int max_polys)
-{
-    vector<vector<Point>> separated;
-
-    queue<tuple<int, int, int, int, vector<Point>>> q;
-    q.push(make_tuple(0, 0, 700, 700, points));
-    int rem_sepa = max_polys - 1;
-    while (!q.empty() && rem_sepa > 0)
-    {
-        int x1, y1, x2, y2;
-        vector<Point> ps;
-        tie(x1, y1, x2, y2, ps) = q.front();
-        q.pop();
-
-        if (y2 - y1 >= x2 - x1)
-        {
-            int split_y = (y1 + y2) / 2;
-            vector<Point> a, b;
-            for (auto& p : ps)
-                (p.y < split_y ? a : b).push_back(p);
-
-            if (a.size() >= 3 && b.size() >= 3)
-            {
-                q.push(make_tuple(x1, y1, x2, split_y, a));
-                q.push(make_tuple(x1, split_y, x2, y2, b));
-                --rem_sepa;
-            }
-            else
-                separated.push_back(ps);
-        }
-        else
-        {
-            int split_x = (x1 + x2) / 2;
-            vector<Point> a, b;
-            for (auto& p : ps)
-                (p.x < split_x ? a : b).push_back(p);
-
-            if (a.size() >= 3 && b.size() >= 3)
-            {
-                q.push(make_tuple(x1, y1, split_x, y2, a));
-                q.push(make_tuple(split_x, y1, x2, y2, b));
-                --rem_sepa;
-            }
-            else
-                separated.push_back(ps);
-        }
-    }
-    while (!q.empty())
-    {
-        separated.push_back(get<4>(q.front()));
-        q.pop();
-    }
-
-    return separated;
-}
 Poly build_poly(const vector<Point>& points)
 {
     Poly poly;
@@ -887,7 +1014,7 @@ Poly improve_poly(const Poly& init_poly, const double tl)
     int succ = 0;
     int loops = 0;
     for (int loop_i = 0;
-//          loop_i < ten(3) * 3;
+//          loop_i < ten(4) * 3;
             ;
          ++loop_i, ++loops)
     {
@@ -922,6 +1049,7 @@ vector<Poly> improve_polys(const Poly& init_poly, const int max_polys, const dou
     int loop_i = 0, poly_iter = 0;
     int updates = 0;
     for (;
+//         loop_i < 1000;
         ;
         ++loop_i)
     {
@@ -937,6 +1065,12 @@ vector<Poly> improve_polys(const Poly& init_poly, const int max_polys, const dou
             {
                 best_polys[poly_iter + 1] = polys;
                 best_area2[poly_iter + 1] = ar2;
+
+                if (poly_iter + 2 < max_polys && best_area2[poly_iter + 2] != ten(9) && best_area2[poly_iter + 1] < best_area2[poly_iter + 2])
+                {
+                    for (int i = poly_iter + 2; i < max_polys; ++i)
+                        best_area2[i] = ten(9);
+                }
             }
         }
 
