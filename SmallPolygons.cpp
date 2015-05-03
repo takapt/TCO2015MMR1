@@ -149,7 +149,7 @@ Random g_rand;
 
 
 #ifdef LOCAL
-const double G_TL = 2 * 6.0 * 1000.0;
+const double G_TL = 6.0 * 1000.0;
 #else
 const double G_TL = 9.6 * 1000.0;
 #endif
@@ -708,20 +708,19 @@ pair<Poly, vector<Point>> remove_points(Poly poly, int begin, int num)
     assert(remain_poly.size() >= 3);
 
     rep(i, (int)remain_poly.size() - 1)
-    {
         if (intersect(remain_poly[0], remain_poly.back(), remain_poly[i], remain_poly[i + 1]))
-        {
             return make_pair(Poly(), vector<Point>());
-        }
-    }
 
-    for (auto& p : removed_points)
-    {
-        if (contain(remain_poly, p) != OUT)
-        {
+    rep(i, (int)removed_points.size() - 1)
+        if (intersect(remain_poly[0], remain_poly.back(), removed_points[i], removed_points[i + 1]))
             return make_pair(Poly(), vector<Point>());
-        }
-    }
+    if (contain(remain_poly, removed_points[0]) != OUT)
+        return make_pair(Poly(), vector<Point>());
+
+#ifndef NDEBUG
+    for (auto& p : removed_points)
+        assert(contain(remain_poly, p) == OUT);
+#endif
 
     return make_pair(remain_poly, removed_points);
 }
@@ -907,6 +906,7 @@ Poly improve_poly(const Poly& init_poly, const double tl)
             }
         }
     }
+    dump(loops);
     return poly;
 }
 vector<Poly> improve_polys(const Poly& init_poly, const int max_polys, const double tl)
