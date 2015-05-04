@@ -151,7 +151,7 @@ Random g_rand;
 #ifdef LOCAL
 const double G_TL = 6.0 * 1000.0;
 #else
-const double G_TL = 9.6 * 1000.0;
+const double G_TL = 9.8 * 1000.0;
 #endif
 Timer g_timer;
 
@@ -995,6 +995,42 @@ Poly rebuild_poly(Poly poly)
     return build_poly(remain_poly, remain_points);
 }
 
+vector<Poly> rebuild_polys(const vector<Poly>& init_polys)
+{
+    vector<double> ratio(init_polys.size());
+    rep(i, init_polys.size())
+        ratio[i] = init_polys[i].size() <= 3 ? 0 : init_polys[i].size();
+    const int polys_i = g_rand.select(ratio);
+    if (init_polys[polys_i].size() <= 3)
+        return {};
+
+    int remove_begin = g_rand.next_int(init_polys[polys_i].size());
+    int remove_num = g_rand.next_int(1, min<int>(50, (int)init_polys[polys_i].size() - 3));
+
+    Poly div_poly;
+    vector<Point> remain_points;
+    tie(div_poly, remain_points) = remove_points(init_polys[polys_i], remove_begin, remove_num);
+    if (div_poly.empty())
+        return {};
+    assert(signed_area2(div_poly) > 0);
+
+    auto remain_polys = init_polys;
+    vector<PolyUtil> poly_util(remain_polys.size(), Poly());
+    rep(i, remain_polys.size())
+        if (i != polys_i)
+            poly_util[i] = PolyUtil(remain_polys[i]);
+    rep(i, remain_polys.size())
+    {
+        if (i != polys_i && poly_util[i].intersect(div_poly[0], div_poly.back()))
+            return {};
+    }
+    remain_polys[polys_i] = div_poly;
+    poly_util[polys_i] = PolyUtil(div_poly);
+    assert(!intersect_polys(remain_polys));
+
+    return build_polys(remain_polys, remain_points);
+}
+
 
 Poly build_poly(const vector<Point>& points)
 {
@@ -1022,7 +1058,7 @@ Poly improve_poly(const Poly& init_poly, const double tl)
             ;
          ++loop_i, ++loops)
     {
-        if (loop_i % 1000 == 0 && g_timer.get_elapsed() > tl)
+        if (loop_i % 5000 == 0 && g_timer.get_elapsed() > tl)
             break;
 
         if (loop_i - last_update_i > 3 * ten(4))
@@ -1042,7 +1078,7 @@ Poly improve_poly(const Poly& init_poly, const double tl)
             }
         }
     }
-    dump(loops);
+//     dump(loops);
     return poly;
 }
 vector<Poly> improve_polys(const Poly& init_poly, const int max_polys, const double tl)
@@ -1064,15 +1100,23 @@ vector<Poly> improve_polys(const Poly& init_poly, const int max_polys, const dou
         ;
         ++loop_i)
     {
-        if (loop_i % 100 == 0 && g_timer.get_elapsed() > tl)
+        if (loop_i % 500 == 0 && g_timer.get_elapsed() > tl)
             break;
 
-        auto polys = divide_poly(best_polys[poly_iter]);
+        vector<Poly> polys;
+        if (poly_iter < max_polys - 1 && g_rand.next_int(2))
+            polys = divide_poly(best_polys[poly_iter]);
+        else
+            polys = rebuild_polys(best_polys[poly_iter]);
+
         if (!polys.empty())
         {
             ++updates;
+
+            const int niter = (int)polys.size() - 1;
+
             int ar2 = area2(polys);
-            if (ar2 < best_area2[poly_iter] && ar2 < best_area2[poly_iter + 1])
+            if (ar2 < best_area2[poly_iter] && ar2 < best_area2[niter])
             {
                 ++best_updates;
                 if (ar2 < best_a)
@@ -1082,10 +1126,10 @@ vector<Poly> improve_polys(const Poly& init_poly, const int max_polys, const dou
                 }
 
 //                 fprintf(stderr, "%6d, %2d: %10.1f -> %10.1f\n", loop_i, poly_iter + 2, best_area2[poly_iter + 1] / 2.0, ar2 / 2.0);
-                best_polys[poly_iter + 1] = polys;
-                best_area2[poly_iter + 1] = ar2;
+                best_polys[niter] = polys;
+                best_area2[niter] = ar2;
 
-                for (int i = poly_iter + 2; i < max_polys; ++i)
+                for (int i = niter + 1; i < max_polys; ++i)
                 {
                     if (best_area2[i] != ten(9) && ar2 < best_area2[i])
                         best_area2[i] = ten(9);
@@ -1093,16 +1137,16 @@ vector<Poly> improve_polys(const Poly& init_poly, const int max_polys, const dou
             }
         }
 
-        ++poly_iter %= max_polys - 1;
+        ++poly_iter %= max_polys;
         while (best_area2[poly_iter] == ten(9))
-            ++poly_iter %= max_polys - 1;
+            ++poly_iter %= max_polys;
     }
-    dump(loop_i);
-    dump(updates);
-    dump(best_updates);
-
-    rep(i, max_polys)
-        fprintf(stderr, "%2d: %f\n", i, best_area2[i] / 2.0);
+//     dump(loop_i);
+//     dump(updates);
+//     dump(best_updates);
+//
+//     rep(i, max_polys)
+//         fprintf(stderr, "%2d: %f\n", i, best_area2[i] / 2.0);
 
     int best_i = -1;
     int best_ar2 = ten(9);
@@ -1136,22 +1180,21 @@ vector<Poly> solve_try(const vector<Point>& points, const int max_polys, const d
 {
     const double current = g_timer.get_elapsed();
     Poly poly = build_poly(points);
-    poly = improve_poly(poly, current + (tl - current) * (points.size() < 400 ? 0.3 : (points.size() < 1000 ? 0.5 : 0.8)));
+    poly = improve_poly(poly, current + (tl - current) * (points.size() < 400 ? 0.4 : (points.size() < 1000 ? 0.5 : 0.8)));
     vector<Poly> polys = improve_polys(poly, max_polys, tl);
-    dump(getms_calls);
     return polys;
 }
 vector<Poly> many_tries(const vector<Point>& points, const int max_polys)
 {
     int tries;
     if (points.size() < 50)
-        tries = 40;
+        tries = 30;
     else if (points.size() < 70)
         tries = 20;
     else if (points.size() < 100)
         tries = 5;
     else if (points.size() < 200)
-        tries = 3;
+        tries = 2;
     else
         tries = 1;
 
@@ -1186,6 +1229,8 @@ public:
 
 //         vector<Poly> polys = solve(points, max_polys);
         vector<Poly> polys = many_tries(points, max_polys);
+        dump(getms_calls);
+        dump(g_timer.get_elapsed());
 
         map<Point, int> index;
         rep(i, points.size())
