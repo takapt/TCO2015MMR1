@@ -776,38 +776,6 @@ vector<Poly> build_polys(const vector<Poly>& init_polys, vector<Point> rem)
                 assert(poly_util[polys_i].intersect(a, p) == intersect(poly, poly_i, a, p));
                 assert(poly_util[polys_i].intersect(b, p) == intersect(poly, poly_i, b, p));
 
-            //TODO: cross < 0のやつがあるのが謎
-//                 {
-//                 assert(signed_area2(poly) >= 0);
-//                 auto w = poly;
-//                 reverse(all(w));
-//                 assert(signed_area2(w) <= 0);
-// //                 dump(poly.size());
-// //                 dump(cross(p - poly[poly_i], poly[(poly_i + 1) % poly.size()] - poly[poly_i]));
-// //                 dump(contain(poly, p));
-//                 assert(contain(poly, p) != IN);
-//                 assert(is_valid_poly(poly));
-//                 assert(0 <= poly_i && poly_i < poly.size());
-//                 dump(poly.size());
-//                 dump(poly);
-//                 dump(signed_area2(poly));
-//                 dump(p);
-//                 dump(cross(p - poly[poly_i], poly[(poly_i + 1) % poly.size()] - poly[poly_i]));
-//                 if (cross(p - poly[poly_i], poly[(poly_i + 1) % poly.size()] - poly[poly_i]) < 0)
-//                 {
-//                     int ar2 = get<0>(it);
-//                     dump(triangle_area2(poly[poly_i], poly[(poly_i + 1) % poly.size()], p));
-//                     dump(ar2);
-//                     auto w = poly;
-//
-//                     w.insert(w.begin() + poly_i + 1, p);
-//                     dump(signed_area2(w));
-//                     assert(is_valid_poly(w));
-//                 }
-//                 assert(cross(p - poly[poly_i], poly[(poly_i + 1) % poly.size()] - poly[poly_i]) >= 0);
-//                 }
-
-
                 bool is = false;
                 rep(i, polys.size())
                 {
@@ -844,11 +812,7 @@ vector<Poly> build_polys(const vector<Poly>& init_polys, vector<Point> rem)
 
         for (auto& p : rem)
         {
-//             cand.push(encode(poly[poly_i], poly[(poly_i + 1) % poly.size()], p));
-//             cand.push(encode(poly[(poly_i + 1) % poly.size()], poly[(poly_i + 2) % poly.size()], p));
-//             if (cross(p - poly[poly_i], poly[(poly_i + 1) % poly.size()] - poly[poly_i]) >= 0)
                 cand.push(encode(poly[poly_i], poly[(poly_i + 1) % poly.size()], p));
-//             if (cross(p - poly[(poly_i + 1) % poly.size()], poly[(poly_i + 2) % poly.size()] - poly[(poly_i + 1) % poly.size()]) >= 0)
                 cand.push(encode(poly[(poly_i + 1) % poly.size()], poly[(poly_i + 2) % poly.size()], p));
         }
     }
