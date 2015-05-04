@@ -744,6 +744,7 @@ vector<Poly> build_polys(const vector<Poly>& init_polys, vector<Point> rem)
 
     while (!rem.empty())
     {
+//         dump(rem.size());
         static pint poly_index[1024][1024];
         rep(polys_i, polys.size())
         {
@@ -827,7 +828,9 @@ vector<Poly> build_polys(const vector<Poly>& init_polys, vector<Point> rem)
             }
         }
         if (best_pair.first.x == -1)
+        {
             return {};
+        }
 
         const int polys_i = poly_index[best_pair.first.y][best_pair.first.x].first;
         const int poly_i = poly_index[best_pair.first.y][best_pair.first.x].second;
@@ -1032,7 +1035,7 @@ Poly improve_poly(const Poly& init_poly, const double tl)
             int nar2 = area2(next);
             if (nar2 < ar2)
             {
-//                 fprintf(stderr, "%6d: %9.1f -> %9.1f\n", loop_i, ar2 / 2.0, nar2 / 2.0);
+//                 fprintf(stderr, "%6d, %5.0f: %9.1f -> %9.1f\n", loop_i, g_timer.get_elapsed(), ar2 / 2.0, nar2 / 2.0);
                 ar2 = nar2;
                 poly = next;
                 last_update_i = loop_i;
@@ -1054,6 +1057,8 @@ vector<Poly> improve_polys(const Poly& init_poly, const int max_polys, const dou
 
     int loop_i = 0, poly_iter = 0;
     int updates = 0;
+    int best_updates = 0;
+    int best_a = ten(9);
     for (;
 //         loop_i < 1000;
         ;
@@ -1069,6 +1074,14 @@ vector<Poly> improve_polys(const Poly& init_poly, const int max_polys, const dou
             int ar2 = area2(polys);
             if (ar2 < best_area2[poly_iter] && ar2 < best_area2[poly_iter + 1])
             {
+                ++best_updates;
+                if (ar2 < best_a)
+                {
+                    best_a = ar2;
+//                     fprintf(stderr, "%6d, %2d: %10.1f -> %10.1f\n", loop_i, poly_iter + 2, best_area2[poly_iter + 1] / 2.0, ar2 / 2.0);
+                }
+
+//                 fprintf(stderr, "%6d, %2d: %10.1f -> %10.1f\n", loop_i, poly_iter + 2, best_area2[poly_iter + 1] / 2.0, ar2 / 2.0);
                 best_polys[poly_iter + 1] = polys;
                 best_area2[poly_iter + 1] = ar2;
 
@@ -1086,6 +1099,7 @@ vector<Poly> improve_polys(const Poly& init_poly, const int max_polys, const dou
     }
     dump(loop_i);
     dump(updates);
+    dump(best_updates);
 
     rep(i, max_polys)
         fprintf(stderr, "%2d: %f\n", i, best_area2[i] / 2.0);
@@ -1118,6 +1132,47 @@ vector<Poly> solve(const vector<Point>& points, const int max_polys)
     return polys;
 }
 
+vector<Poly> solve_try(const vector<Point>& points, const int max_polys, const double tl)
+{
+    const double current = g_timer.get_elapsed();
+    Poly poly = build_poly(points);
+    poly = improve_poly(poly, current + (tl - current) * (points.size() < 400 ? 0.3 : (points.size() < 1000 ? 0.5 : 0.8)));
+    vector<Poly> polys = improve_polys(poly, max_polys, tl);
+    dump(getms_calls);
+    return polys;
+}
+vector<Poly> many_tries(const vector<Point>& points, const int max_polys)
+{
+    int tries;
+    if (points.size() < 50)
+        tries = 40;
+    else if (points.size() < 70)
+        tries = 20;
+    else if (points.size() < 100)
+        tries = 5;
+    else if (points.size() < 200)
+        tries = 3;
+    else
+        tries = 1;
+
+    int best_area2 = ten(9);
+    vector<Poly> best_polys;
+    rep(try_i, tries)
+    {
+        auto polys = solve_try(points, max_polys, G_TL * (try_i + 1) / tries);
+        if (!polys.empty())
+        {
+            int ar2 = area2(polys);
+            if (ar2 < best_area2)
+            {
+                best_area2 = ar2;
+                best_polys = polys;
+            }
+        }
+    }
+    return best_polys;
+}
+
 class SmallPolygons
 {
 public:
@@ -1129,7 +1184,8 @@ public:
         for (int i = 0; i < _points.size(); i += 2)
             points.push_back(Point(_points[i], _points[i + 1]));
 
-        vector<Poly> polys = solve(points, max_polys);
+//         vector<Poly> polys = solve(points, max_polys);
+        vector<Poly> polys = many_tries(points, max_polys);
 
         map<Point, int> index;
         rep(i, points.size())
