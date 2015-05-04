@@ -775,6 +775,7 @@ vector<Poly> build_polys(const vector<Poly>& init_polys, vector<Point> rem)
                 assert(poly_util[polys_i].intersect(a, p) == intersect(poly, poly_i, a, p));
                 assert(poly_util[polys_i].intersect(b, p) == intersect(poly, poly_i, b, p));
 
+            //TODO: cross < 0のやつがあるのが謎
 //                 {
 //                 assert(signed_area2(poly) >= 0);
 //                 auto w = poly;
@@ -840,7 +841,6 @@ vector<Poly> build_polys(const vector<Poly>& init_polys, vector<Point> rem)
 
         for (auto& p : rem)
         {
-            //TODO: cross < 0のやつがあるのが謎
 //             cand.push(encode(poly[poly_i], poly[(poly_i + 1) % poly.size()], p));
 //             cand.push(encode(poly[(poly_i + 1) % poly.size()], poly[(poly_i + 2) % poly.size()], p));
 //             if (cross(p - poly[poly_i], poly[(poly_i + 1) % poly.size()] - poly[poly_i]) >= 0)
@@ -1011,6 +1011,7 @@ Poly improve_poly(const Poly& init_poly, const double tl)
     int ar2 = area2(init_poly);
     Poly poly = init_poly;
 
+    int last_update_i = -1;
     int succ = 0;
     int loops = 0;
     for (int loop_i = 0;
@@ -1021,6 +1022,9 @@ Poly improve_poly(const Poly& init_poly, const double tl)
         if (loop_i % 1000 == 0 && g_timer.get_elapsed() > tl)
             break;
 
+        if (loop_i - last_update_i > 3 * ten(4))
+            break;
+
         Poly next = rebuild_poly(poly);
         if (!next.empty())
         {
@@ -1028,8 +1032,10 @@ Poly improve_poly(const Poly& init_poly, const double tl)
             int nar2 = area2(next);
             if (nar2 < ar2)
             {
+//                 fprintf(stderr, "%6d: %9.1f -> %9.1f\n", loop_i, ar2 / 2.0, nar2 / 2.0);
                 ar2 = nar2;
                 poly = next;
+                last_update_i = loop_i;
             }
         }
     }
@@ -1066,9 +1072,9 @@ vector<Poly> improve_polys(const Poly& init_poly, const int max_polys, const dou
                 best_polys[poly_iter + 1] = polys;
                 best_area2[poly_iter + 1] = ar2;
 
-                if (poly_iter + 2 < max_polys && best_area2[poly_iter + 2] != ten(9) && best_area2[poly_iter + 1] < best_area2[poly_iter + 2])
+                for (int i = poly_iter + 2; i < max_polys; ++i)
                 {
-                    for (int i = poly_iter + 2; i < max_polys; ++i)
+                    if (best_area2[i] != ten(9) && ar2 < best_area2[i])
                         best_area2[i] = ten(9);
                 }
             }
@@ -1084,10 +1090,18 @@ vector<Poly> improve_polys(const Poly& init_poly, const int max_polys, const dou
     rep(i, max_polys)
         fprintf(stderr, "%2d: %f\n", i, best_area2[i] / 2.0);
 
-    for (int i = max_polys - 1; i >= 0; --i)
-        if (best_area2[i] != ten(9))
-            return best_polys[i];
-    return {};
+    int best_i = -1;
+    int best_ar2 = ten(9);
+    rep(i, max_polys)
+    {
+        if (best_area2[i] < best_ar2)
+        {
+            best_i = i;
+            best_ar2 = best_area2[i];
+        }
+    }
+    assert(best_i != -1);
+    return best_polys[best_i];
 }
 vector<Poly> solve(const vector<Point>& points, const int max_polys)
 {
